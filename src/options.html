@@ -1,0 +1,38 @@
+<html>
+<head>
+<style type="text/css">
+html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 12px;}
+a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
+</style>
+<script type="text/javascript" src="js/jquery.js"></script>
+<script type="text/javascript" src="js/options.js"></script>
+</head>
+<body>
+<h1>Gmail Gerrit Extension Setup</h1>
+<div>
+When your Gmail is showing an email from Gerrit,
+<ul>
+  <li>A PageAction is displayed, where you can approve the review directly.</li>
+  <li>You can press 'w' to open the review diffs page.</li>
+  <li>You can press 'W' to approve the review without opening reviewboard.</li>
+</ul>
+</div>
+<div>
+For this to work, we need to first know where your ReviewBoard instance is hosted.  Please enter your ReviewBoard URL prefix below:
+</div>
+<form class="options-form">
+  <div>
+    Gerrit URL: <input id="url" style="width:400px"/>
+  </div>
+  <div>
+    User: <input id="user" style="width:400px"/>
+  </div>
+  <div>
+    Password: <input id="password" style="width:400px"/>
+  </div>
+  <div>
+    <button action="submit">Save</button>
+  </div>
+</form>
+</body>
+</html>
