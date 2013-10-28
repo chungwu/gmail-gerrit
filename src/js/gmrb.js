@@ -45,6 +45,10 @@ function formatCard($card, reviewData) {
     formatNewChange($msg, text, reviewData);
   } else if (text.indexOf("Gerrit-MessageType: comment") >= 0) {
     formatComment($msg, text, reviewData);
+  } else if (text.indexOf("Gerrit-MessageType: merged") >= 0) {
+    formatMerged($msg, text, reviewData);
+  } else if (text.indexOf("Gerrit-MessageType: newpatchset") >= 0) {
+    formatNewPatch($msg, text, reviewData);
   }
   $card.addClass("gerrit-formatted");
 }
@@ -106,6 +110,16 @@ function formatComment($msg, text, reviewData) {
     $line.append("<br/>");
     $msg.append($line);
   };
+}
+
+function formatMerged($msg, text, reviewData) {
+  $msg.empty().html("<h3>Merged</h3>");
+}
+
+var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
+function formatNewPatch($msg, text, reviewData) {
+  var pid = RE_PATCHSET.exec(text)[1];
+  $msg.empty().html("<h3>New Patch Set: " + pid + "</h3>");
 }
 
 function isApproved(reviewData) {
