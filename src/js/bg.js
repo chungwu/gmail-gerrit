@@ -34,6 +34,10 @@ function showRbAction(tabId, rbId, status) {
   chrome.pageAction.show(tabId);
 }
 
+function showRbError() {
+  chrome.pageAction.setIcon({tabId:tabId, path:"icons/reviewboard-error.png"});
+}
+
 function hideRbAction(tabId) {
   delete tabRbId[tabId];
   delete tabRbStatus[tabId];

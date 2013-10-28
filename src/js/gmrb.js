@@ -10,6 +10,7 @@ function loadRb(id) {
 
     $sidebarBoxes = $("div[role='main'] .nH.anT .nH");
     $rbBox.insertAfter($($sidebarBoxes[0]));
+    $("a", $rbBox).prop("href", rbUrl + "/" + rbId);
 
     formatThread(data);
   }
@@ -19,102 +20,92 @@ function loadRb(id) {
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
   console.log("Formatting thread", $thread);
-  $(".Bk", $thread).each(function() {
-    formatCard($(this), reviewData);
-  });
+
+  function doFormat() {
+    if (!rbId) {
+      return;
+    }
+    $(".Bk", $thread).not(".gerrit-formatted").each(function() {
+      formatCard($(this), reviewData);
+    });
+    setTimeout(doFormat, 1000);
+  }
+  doFormat();
 }
 
 function formatCard($card, reviewData) {
-  console.log("Formatting card", $card);
   var $msg = $($(".ii div", $card)[0]);
   var text = $msg.text();
-  console.log("TEXT", text);
+  if (!$.trim(text)) {
+    return;
+  } else {
+    console.log("Formatting card", $card);
+  }
   if (text.indexOf("Gerrit-MessageType: newchange") >= 0) {
     formatNewChange($msg, text, reviewData);
   } else if (text.indexOf("Gerrit-MessageType: comment") >= 0) {
     formatComment($msg, text, reviewData);
   }
+  $card.addClass("gerrit-formatted");
 }
 
 function formatNewChange($msg, text, reviewData) {
   var lines = text.split("\n");
   $msg.empty();
   var isDiff = false;
-  var buffer = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var isAdd = line.indexOf("+") == 0;
-    var isRemove = line.indexOf("-") == 0;
-    var isFile = line.indexOf("diff --git") == 0;
+    var $line = $("<span/>").text(line);
 
     if (line.indexOf("Change-Id:") == 0) {
       isDiff = true;
     } else if (line.indexOf("Gerrit-Change-Id:") == 0) {
       isDiff = false;
     }
+
     if (isDiff) {
-      buffer.push("<span style='font-family: monospace;'>");
-      if (isAdd) {
-        buffer.push("<span style='color: green;'>");
-      } else if (isRemove) {
-        buffer.push("<span style='color: red;'>");
+      $line.css("fontFamily", "monospace");
+      if (line.indexOf("+") == 0) { // is add
+        $line.css("color", "green");
+      } else if (line.indexOf("-") == 0) { // is remove
+        $line.css("color", "red");
       }
-      if (isFile) {
-        buffer.push("<br/><strong>");
+      if (line.indexOf("diff --git") == 0) { // is new file
+        $line.prepend("<br/>");
+        $line.css("fontWeight", "bold");
       }
     }
-    buffer.push($("<div/>").text(line).html());
-    if (isDiff) {
-      if (isFile) {
-        buffer.push("</strong>");
-      }
-      if (isAdd || isRemove) {
-        buffer.push("</span>");
-      }
-      buffer.push("</span>");
-    }
-    buffer.push("<br/>");
+    $line.append("<br/>");
+    $msg.append($line);
   }
-  $msg.html(buffer.join(""));
 }
 
 function formatComment($msg, text, reviewData) {
   var lines = text.split("\n");
   $msg.empty();
-  var buffer = [];
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
-    var isFileTitle = line.indexOf("File ") == 0;
-    var isLine = line.indexOf("Line ") == 0;
-    var isReview = line.indexOf("Code-Review") > 0;
+    var $line = $("<span/>").text(line);
 
-    if (isReview) {
+    if (line.indexOf("Code-Review") > 0) { // is review label
       var color = line.indexOf("+2") >= 0 ? "green" : line.indexOf("-1") >= 0 ? "red" : line.indexOf("-2") >= 0 ? "red" : "inherit";
-      buffer.push("<strong style='color:" + color + ";font-size:1.5em'>");
-    }
-    if (isFileTitle) {
-      buffer.push("<strong style='font-family: monospace;'>");
-    }
-    if (isLine) {
-      buffer.push("<span style='font-family: monospace;'>");
+      $line.css("color", color);
+      $line.css("fontSize", "1.5em");
+      $line.css("fontWeight", "bold");
     }
 
-    buffer.push($("<div/>").text(line).html());
-
-    if (isReview) {
-      buffer.push("</strong>");
+    if (line.indexOf("File ") == 0) { // is file title
+      $line.css({fontFamily: "monospace", fontSize: "1.3em", fontWeight: "bold"});
+      $line.append("<br/>");
     }
 
-    if (isFileTitle) {
-      buffer.push("</strong>");
-    }
-    if (isLine) {
-      buffer.push("</span>");
+    if (line.indexOf("Line ") == 0) { // is line diff
+      $line.css("fontFamily", "monospace");
     }
 
-    buffer.push("<br/>");
+    $line.append("<br/>");
+    $msg.append($line);
   };
-  $msg.html(buffer.join(""));
 }
 
 function isApproved(reviewData) {
@@ -172,7 +163,13 @@ function getRbUrl(callback) {
 var rbId = null;
 var rbUrl = null;
 var re_rgid = new RegExp(".*/(\\d+)$");
-var $rbBox = $("<div class='nH'><h3>Gerrit</h3></div>");
+var $rbBox = $(
+  "<div class='nH' style='padding-bottom: 20px'>" +
+    "<div class='am6'></div>" + 
+    "<h4 style='margin-bottom: 10px'>Gerrit</h4>" + 
+    "<a class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</a>" +
+  "</div>"
+);
 
 function initialize() {
   getRbUrl(function(url) { 
