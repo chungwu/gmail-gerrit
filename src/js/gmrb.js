@@ -13,10 +13,10 @@ function loadRb(id) {
     $(".action-button", $rbBox).hide();
 
     var $status = $(".status", $rbBox).text(status).css("color", "#555");
-    var isOwner = rbUser == data.owner.email.split("@")[0];
+    var isOwner = rbEmail == data.owner.email;
     var isReviewer = false;
     for (var i = 0; i < data.removable_reviewers.length; i++) {
-      if (rbUser == data.removable_reviewers[i].email.split("@")[0]) {
+      if (rbEmail== data.removable_reviewers[i].email) {
         isReviewer = true;
         break;
       }
@@ -231,7 +231,7 @@ function loadSettings(callback) {
 
 var rbId = null;
 var rbUrl = null;
-var rbUser = null;
+var rbEmail = null;
 var re_rgid = new RegExp(".*/(\\d+)$");
 var $rbBox = $(
   "<div class='nH' style='padding-bottom: 20px'>" +
@@ -287,7 +287,7 @@ function initialize() {
       return;
     }
     rbUrl = settings.url; 
-    rbUser = settings.user;
+    rbEmail = settings.email;
     if (!rbUrl) {
       showNeedSetup();
       return;

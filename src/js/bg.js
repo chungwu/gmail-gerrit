@@ -70,12 +70,16 @@ function mergeRb(rbId, callback) {
 
 _RE_AUTH = /xGerritAuth="([^"]+)"/
 _RE_USER = /"userName":"([^"]+)"/
+_RE_EMAIL = /"preferredEmail":"([^"]+)"/
 _GERRIT_AUTH = undefined;
 _GERRIT_USER = undefined;
+_GERRIT_EMAIL = undefined;
 function initializeAuth(callback) {
   function onSuccess(data, textStatus, xhr) {
     _GERRIT_AUTH = _RE_AUTH.exec(data)[1];
     _GERRIT_USER = _RE_USER.exec(data)[1];
+    _GERRIT_EMAIL = _RE_EMAIL.exec(data)[1];
+    console.log("User: " + _GERRIT_USER + ", email: " + _GERRIT_EMAIL + ", auth: " + _GERRIT_AUTH);
     callback(true);
   }
   function onError() {
@@ -247,7 +251,7 @@ function rbUrl() {
 function loadSettings(callback) {
   initializeAuth(function(success) {
     if (success) {
-      callback({user: _GERRIT_USER, url: rbUrl(), auth: true});
+      callback({user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL});
     } else {
       callback({url: rbUrl(), auth: false});
     }
