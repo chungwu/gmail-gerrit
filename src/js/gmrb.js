@@ -216,6 +216,8 @@ function reviewStatus(reviewData) {
     return 'Merged';
   } else if (reviewData.status == 'ABANDONED') {
     return 'Abandoned';
+  } else if (reviewData.status == 'SUBMITTED') {
+    return 'Merge Pending';
   } else if (isApproved(reviewData)) {
     return 'Approved';
   } else if (reviewData.reviewed) {
