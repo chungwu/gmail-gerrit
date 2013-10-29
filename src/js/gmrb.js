@@ -386,7 +386,7 @@ function checkRb() {
 
 function handleKeyPress(e) {
   if (e.which == 119) {
-    viewDiff();
+    viewCurrentReview();
   }
 }
 
