@@ -77,6 +77,7 @@ function formatThread(reviewData) {
     setTimeout(doFormat, 1000);
   }
   doFormat();
+  $($(".show-diffs-button", $thread)[0]).click();
 }
 
 function formatCard($card, reviewData) {
@@ -104,36 +105,81 @@ function formatCard($card, reviewData) {
 function formatNewChange($msg, text, reviewData) {
   var lines = text.split("\n");
   $msg.empty();
-  var isDiff = false;
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
+  var diffStart = indexOf(lines, function(l) { return l.indexOf(".....") == 0; })+1;
+  _appendDiffs($msg, lines.slice(diffStart));
+}
 
+function indexOf(array, func, opt_backward) {
+  if (opt_backward) {
+    for (var i=array.length-1; i>=0; i--) {
+      if (func(array[i])) {
+        return i;
+      }
+    }
+    return -1;
+  } else {
+    for (var i=0; i<array.length; i++) {
+      if (func(array[i])) {
+        return i;
+      }
+    }
+    return -1;
+  }
+}
+
+_FUNC_NOT_EMPTY = function(l) { return l != ""; };
+
+function _trimLines(lines) {
+  return lines.slice(indexOf(lines, _FUNC_NOT_EMPTY), indexOf(lines, _FUNC_NOT_EMPTY, true) + 1);
+}
+
+function _appendDiffs($container, lines) {
+  lines = lines.slice(indexOf(lines, function(l) { return l != ""; }));
+
+  var diffStart = indexOf(lines, function(l) { return l.indexOf("Change-Id:") == 0; });
+
+  var $header = highlightBox().appendTo($container);
+  var headerLines = _trimLines(lines.slice(0, diffStart));
+  for (var i=0; i<headerLines.length; i++) {
+    var $line = $("<span/>").text(headerLines[i]).append("<br/>").appendTo($header);
+    if (i == 0) {
+      $line.css({fontWeight: "bold", fontSize: "1.3em"});
+    }
+  }
+
+  var $toggle = $("<div class='T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO show-diffs-button'/>")
+    .text("Show diffs")
+    .css({fontWeight: "bold", margin: "10px 0"})
+    .click(function() {
+      if ($toggle.hasClass("showing")) {
+        $toggle.text("Show diffs");
+        $box.hide();
+        $toggle.removeClass("showing");
+      } else {
+        $toggle.text("Hide diffs");
+        $box.show();
+        $toggle.addClass("showing");
+      }
+    }).appendTo($container);
+
+  var $box = $("<div/>").appendTo($container).hide();
+
+  for (var i=diffStart; i < lines.length; i++) {
+    var line = lines[i];
     if (line == "--") {
       break;
     }
-
-    var $line = $("<span/>").text(line);
-
-    if (line.indexOf("Change-Id:") == 0) {
-      isDiff = true;
-    } else if (line.indexOf("Gerrit-Change-Id:") == 0) {
-      isDiff = false;
+    var $line = $("<div/>").text(line).css("fontFamily", "monospace");
+    if (line.indexOf("+") == 0) { // is add
+      $line.css("color", "green");
+    } else if (line.indexOf("-") == 0) { // is remove
+      $line.css("color", "red");
     }
-
-    if (isDiff) {
-      $line.css("fontFamily", "monospace");
-      if (line.indexOf("+") == 0) { // is add
-        $line.css("color", "green");
-      } else if (line.indexOf("-") == 0) { // is remove
-        $line.css("color", "red");
-      }
-      if (line.indexOf("diff --git") == 0) { // is new file
-        $line.prepend("<br/>");
-        $line.css("fontWeight", "bold");
-      }
-    }
-    $line.append("<br/>");
-    $msg.append($line);
+    if (line.indexOf("diff --git") == 0) { // is new file
+      $line.prepend("<br/>");
+      $line.css("fontWeight", "bold");
+    }  
+    $box.append($line);
   }
 }
 
@@ -198,6 +244,10 @@ var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
 function formatNewPatch($msg, text, reviewData) {
   var pid = RE_PATCHSET.exec(text)[1];
   $msg.empty().html("<h3>New Patch Set: " + pid + "</h3>");
+  
+  var lines = text.split("\n");
+  var diffStart = indexOf(lines, function(l) { return l.indexOf(".....") == 0; })+1;
+  _appendDiffs($msg, lines.slice(diffStart));
 }
 
 function isApproved(reviewData) {
