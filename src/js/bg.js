@@ -22,11 +22,11 @@ function contentHandler(request, sender, callback) {
 
 function showRbAction(tabId, rbId, status) {
   if (status == "unsetup" || status == "unauthorized") {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/reviewboard-error.png"});
+    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-error.png"});
   } else if (status == "approved") {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/reviewboard-approved.png"});      
+    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-approved.png"});      
   } else {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/reviewboard.png"});
+    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit.png"});
   }
   chrome.pageAction.show(tabId);
 }

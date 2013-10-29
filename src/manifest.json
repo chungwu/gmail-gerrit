@@ -12,7 +12,7 @@
     "matches": ["http://mail.google.com/*", "https://mail.google.com/*"]
   }],
   "page_action": {
-    "default_icon": "icons/reviewboard.png",
+    "default_icon": "icons/gerrit.png",
     "default_popup": "popup.html"
   },
   "permissions": [
