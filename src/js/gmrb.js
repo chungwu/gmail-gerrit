@@ -1,5 +1,27 @@
+var rbId = null;
+var rbUrl = null;
+var rbEmail = null;
+var re_rgid = new RegExp(".*/(\\d+)$");
+var $rbBox = $(
+  "<div class='nH' style='padding-bottom: 20px'>" +
+    "<div class='am6'></div>" + 
+    "<h4 style='margin-bottom: 10px'>Gerrit: <span class='status'></span></h4>" + 
+    "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</span>" +
+    "<span class='action-button approve-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Approve</span>" +
+    "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Merge</span>" +
+  "</div>"
+);
+
+$(".view-button", $rbBox).click(function() { viewCurrentReview(); });
+$(".approve-button", $rbBox).click(function() { approveCurrentReview(); });
+$(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
+
 function loadRb(id) {
   function callback(data) {
+    if (!data) {
+      showNeedLogin();
+      return;
+    }
     rbId = id;
     console.log("RB", data);
 
@@ -44,9 +66,9 @@ function loadRb(id) {
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
   console.log("Formatting thread", $thread);
-
+  var curId = rbId;
   function doFormat() {
-    if (!rbId) {
+    if (!rbId || curId != rbId) {
       return;
     }
     $(".Bk", $thread).not(".gerrit-formatted").each(function() {
@@ -115,9 +137,15 @@ function formatNewChange($msg, text, reviewData) {
   }
 }
 
+function highlightBox() {
+  return $("<div/>").css({backgroundColor: "#ffffcc", padding: "10px", margin: "10px 0", border: "1px solid #ccc"});
+}
+
+_RE_COMMENT_COUNT = /^\(\d+ comments?\)/
 function formatComment($msg, text, reviewData) {
   var lines = text.split("\n");
   $msg.empty();
+  var $box = $msg;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
 
@@ -125,26 +153,36 @@ function formatComment($msg, text, reviewData) {
       break;
     }
 
-    var $line = $("<span/>").text(line);
+    if (_RE_COMMENT_COUNT.test(line)) {
+      continue;
+    }
 
-    if (line.indexOf("Code-Review") > 0) { // is review label
+    var $line = $("<div/>").text(line);
+
+    if (line.indexOf("Patch Set") == 0) { // is patch set label
       var color = line.indexOf("+2") >= 0 ? "green" : line.indexOf("-1") >= 0 ? "red" : line.indexOf("-2") >= 0 ? "red" : "inherit";
       $line.css("color", color);
-      $line.css("fontSize", "1.5em");
+      $line.css("fontSize", "1.3em");
       $line.css("fontWeight", "bold");
+      $box = highlightBox().appendTo($msg);
     }
 
     if (line.indexOf("File ") == 0) { // is file title
       $line.css({fontFamily: "monospace", fontSize: "1.3em", fontWeight: "bold"});
       $line.append("<br/>");
+      $box = highlightBox().appendTo($msg);
     }
 
     if (line.indexOf("Line ") == 0) { // is line diff
       $line.css("fontFamily", "monospace");
+      $line.prepend("<br/>");
     }
 
-    $line.append("<br/>");
-    $msg.append($line);
+    if (line.indexOf("............") == 0) {
+      $box = $msg;
+    }
+
+    $box.append($line);
   };
 }
 
@@ -205,24 +243,6 @@ function loadSettings(callback) {
   chrome.extension.sendRequest({type: "settings"}, callback);
 }
 
-var rbId = null;
-var rbUrl = null;
-var rbEmail = null;
-var re_rgid = new RegExp(".*/(\\d+)$");
-var $rbBox = $(
-  "<div class='nH' style='padding-bottom: 20px'>" +
-    "<div class='am6'></div>" + 
-    "<h4 style='margin-bottom: 10px'>Gerrit: <span class='status'></span></h4>" + 
-    "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</span>" +
-    "<span class='action-button approve-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Approve</span>" +
-    "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Merge</span>" +
-  "</div>"
-);
-
-$(".view-button", $rbBox).click(function() { viewCurrentReview(); });
-$(".approve-button", $rbBox).click(function() { approveCurrentReview(); });
-$(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
-
 function viewCurrentReview() {
   if (!rbId) { return; }
   chrome.extension.sendRequest({type: "viewDiff", rbId: rbId});  
@@ -270,7 +290,6 @@ function initialize() {
     }
     if (!settings.auth) {
       showNeedLogin();
-      return;
     }
     $(window).hashchange(function() {
       setTimeout(checkRb, 100);

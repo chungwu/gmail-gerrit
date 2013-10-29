@@ -74,13 +74,19 @@ _RE_EMAIL = /"preferredEmail":"([^"]+)"/
 _GERRIT_AUTH = undefined;
 _GERRIT_USER = undefined;
 _GERRIT_EMAIL = undefined;
+
+function _extractRe(re, text) {
+  var match = re.exec(text);
+  return match ? match[1] : undefined;
+}
+
 function initializeAuth(callback) {
   function onSuccess(data, textStatus, xhr) {
-    _GERRIT_AUTH = _RE_AUTH.exec(data)[1];
-    _GERRIT_USER = _RE_USER.exec(data)[1];
-    _GERRIT_EMAIL = _RE_EMAIL.exec(data)[1];
+    _GERRIT_AUTH = _extractRe(_RE_AUTH, data);
+    _GERRIT_USER = _extractRe(_RE_USER, data);
+    _GERRIT_EMAIL = _extractRe(_RE_EMAIL, data);
     console.log("User: " + _GERRIT_USER + ", email: " + _GERRIT_EMAIL + ", auth: " + _GERRIT_AUTH);
-    callback(true);
+    callback(_GERRIT_AUTH && _GERRIT_USER && _GERRIT_EMAIL);
   }
   function onError(xhr, textStatus, errorThrown) {
     window.xhr = xhr;
@@ -111,57 +117,72 @@ function reviewStatus(rbId, callback) {
 }
 
 function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
-  var settings = {
-    dataType: "json",
-    dataFilter: function(data) { return data.substring(4); },
-  };
-  if (opt_opts) {
-    $.extend(settings, opt_opts);
-  }
-
-  settings.type = opt_type || 'GET';
-  settings.headers = settings.headers || {};
-  settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTH;
-
-  if (opt_data) {
-    if (settings.type == 'GET') {
-      settings.data = opt_data;
-    } else {
-      settings.data = JSON.stringify(opt_data);
-      settings.contentType = 'application/json';
+  function _ajax() {
+    var settings = {
+      dataType: "json",
+      dataFilter: function(data) { return data.substring(4); },
+    };
+    if (opt_opts) {
+      $.extend(settings, opt_opts);
     }
-  }
-
-  var auth = {step: 0};
-  function onSuccess(data, textStatus, xhr) {
-    success(data, textStatus, xhr);
-  }
-  function onError(xhr, textStatus, errorThrown) {
-    window.xhr = xhr;
-    if (auth.step == 1 || xhr.status != 401) {
-      console.log("real error!");
-      error(xhr, textStatus, errorThrown);
+  
+    settings.type = opt_type || 'GET';
+    settings.headers = settings.headers || {};
+    settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTH;
+  
+    if (opt_data) {
+      if (settings.type == 'GET') {
+        settings.data = opt_data;
+      } else {
+        settings.data = JSON.stringify(opt_data);
+        settings.contentType = 'application/json';
+      }
     }
-
-    // status is 401
-    console.log("Attempting digest auth...");
-    auth.step = 1;
-    var challenge = xhr.getResponseHeader('WWW-Authenticate');
-    var response = _buildChallengeResponse(uri, settings.type, challenge);
-    settings.headers = settings.headers || {}
-    settings.headers['Authorization'] = response;
+  
+    var auth = {step: 0};
+    function onSuccess(data, textStatus, xhr) {
+      success(data, textStatus, xhr);
+    }
+    function onError(xhr, textStatus, errorThrown) {
+      window.xhr = xhr;
+      if (auth.step == 1 || xhr.status != 401) {
+        console.log("real error!");
+        error(xhr, textStatus, errorThrown);
+      }
+  
+      // status is 401
+      console.log("Attempting digest auth...");
+      auth.step = 1;
+      var challenge = xhr.getResponseHeader('WWW-Authenticate');
+      var response = _buildChallengeResponse(uri, settings.type, challenge);
+      settings.headers = settings.headers || {}
+      settings.headers['Authorization'] = response;
+      $.ajax(rbUrl() + uri, settings);
+    }
+  
+    settings.success = onSuccess;
+    settings.error = onError;
     $.ajax(rbUrl() + uri, settings);
   }
-  settings.success = onSuccess;
-  settings.error = onError;
-  $.ajax(rbUrl() + uri, settings);
+
+  if (_GERRIT_AUTH) {
+    _ajax();
+  } else {
+    initializeAuth(function(success) {
+      if (success) {
+        _ajax();
+      } else {
+        error();
+      }
+    });
+  }
 }
 var xhr;
 _RE_NONCE = /nonce="([^"]+)"/
 function _buildChallengeResponse(uri, method, challenge) {
   var auth = _parseChallenge(challenge);
   var cnonce = (Math.random()).toString();
-  var nonce = _RE_NONCE.exec(challenge)[1];
+  var nonce = _extractRe(_RE_NONCE.exec, challenge);
   var nc = "00000001";
   var A1 = digest(user() + ":" + auth.headers.realm + ":" + password());
   var A2 = digest(method + ":" + uri);
