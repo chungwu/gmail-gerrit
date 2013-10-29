@@ -1,16 +1,40 @@
 function loadRb(id) {
   function callback(data) {
     rbId = id;
-    data = $.parseJSON(data);
     console.log("RB", data);
 
-    var status = isApproved(data) ? "approved" : "unapproved";
+    var status = reviewStatus(data);
     console.log("STATUS", status);
     chrome.extension.sendRequest({type: "showRbAction", rbId: id, status: status});
 
     $sidebarBoxes = $("div[role='main'] .nH.anT .nH");
     $rbBox.insertAfter($($sidebarBoxes[0]));
-    $("a", $rbBox).prop("href", rbUrl + "/" + rbId);
+    
+    $(".action-button", $rbBox).hide();
+
+    var $status = $(".status", $rbBox).text(status).css("color", "#555");
+    var isOwner = rbUser == data.owner.email.split("@")[0];
+    var isReviewer = false;
+    for (var i = 0; i < data.removable_reviewers.length; i++) {
+      if (rbUser == data.removable_reviewers[i].email.split("@")[0]) {
+        isReviewer = true;
+        break;
+      }
+    }
+    if (status == "Approved") {
+      $status.css("color", "green");
+      if (isOwner) {
+        $(".merge-button", $rbBox).show();
+      }
+    } else if (status == "Abandoned") {
+      $status.css("color", "red");
+    } else if (status == "Merged") {
+      $status.css("color", "green");
+    } else {
+      if (isReviewer) {
+        $(".approve-button", $rbBox).show();
+      }
+    }
 
     formatThread(data);
   }
@@ -47,6 +71,8 @@ function formatCard($card, reviewData) {
     formatComment($msg, text, reviewData);
   } else if (text.indexOf("Gerrit-MessageType: merged") >= 0) {
     formatMerged($msg, text, reviewData);
+  } else if (text.indexOf("Gerrit-MessageType: merge-failed") >= 0) {
+    formatMergeFailed($msg, text, reviewData);
   } else if (text.indexOf("Gerrit-MessageType: newpatchset") >= 0) {
     formatNewPatch($msg, text, reviewData);
   }
@@ -59,6 +85,11 @@ function formatNewChange($msg, text, reviewData) {
   var isDiff = false;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
+
+    if (line == "--") {
+      break;
+    }
+
     var $line = $("<span/>").text(line);
 
     if (line.indexOf("Change-Id:") == 0) {
@@ -89,6 +120,11 @@ function formatComment($msg, text, reviewData) {
   $msg.empty();
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
+
+    if (line == "--") {
+      break;
+    }
+
     var $line = $("<span/>").text(line);
 
     if (line.indexOf("Code-Review") > 0) { // is review label
@@ -116,6 +152,10 @@ function formatMerged($msg, text, reviewData) {
   $msg.empty().html("<h3>Merged</h3>");
 }
 
+function formatMergeFailed($msg, text, reviewData) {
+  $msg.empty().html("<h3>Merge Failed</h3>");
+}
+
 var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
 function formatNewPatch($msg, text, reviewData) {
   var pid = RE_PATCHSET.exec(text)[1];
@@ -133,6 +173,18 @@ function isApproved(reviewData) {
   return false;
 }
 
+function reviewStatus(reviewData) {
+  if (reviewData.status == 'MERGED') {
+    return 'Merged';
+  } else if (reviewData.status == 'ABANDONED') {
+    return 'Abandoned';
+  } else if (isApproved(reviewData)) {
+    return 'Approved';
+  } else {
+    return 'New';
+  }
+}
+
 function showRbAction(id) {
   rbId = id;
   chrome.extension.sendRequest({type: "showRbAction", rbId: id});
@@ -143,13 +195,16 @@ function showRbAction(id) {
 
 function hideRbAction() {
   rbId = null;
-  chrome.extension.sendRequest({type: "hideRbAction"});
-
   $rbBox.detach();
+  chrome.extension.sendRequest({type: "hideRbAction"});
 }
 
 function showNeedSetup() {
   chrome.extension.sendRequest({type: "showSetup"});
+}
+
+function showNeedLogin() {
+  chrome.extension.sendRequest({type: "showLogin"});
 }
 
 function viewDiff() {
@@ -170,26 +225,75 @@ function approve() {
   }
 }
 
-function getRbUrl(callback) {
-  chrome.extension.sendRequest({type: "rbUrl"}, callback);
+function loadSettings(callback) {
+  chrome.extension.sendRequest({type: "settings"}, callback);
 }
 
 var rbId = null;
 var rbUrl = null;
+var rbUser = null;
 var re_rgid = new RegExp(".*/(\\d+)$");
 var $rbBox = $(
   "<div class='nH' style='padding-bottom: 20px'>" +
     "<div class='am6'></div>" + 
-    "<h4 style='margin-bottom: 10px'>Gerrit</h4>" + 
-    "<a class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</a>" +
+    "<h4 style='margin-bottom: 10px'>Gerrit: <span class='status'></span></h4>" + 
+    "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</span>" +
+    "<span class='action-button approve-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Approve</span>" +
+    "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Merge</span>" +
   "</div>"
 );
 
+$(".view-button", $rbBox).click(function() { viewCurrentReview(); });
+$(".approve-button", $rbBox).click(function() { approveCurrentReview(); });
+$(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
+
+function viewCurrentReview() {
+  if (!rbId) { return; }
+  chrome.extension.sendRequest({type: "viewDiff", rbId: rbId});  
+}
+
+function approveCurrentReview() {
+  if (!rbId) { return; }
+  chrome.extension.sendRequest({type: "approveDiff", rbId: rbId}, function(success, textStatus) {
+    if (success) { 
+      reloadReview(); 
+    } else {
+      alert("ERROR: " + textStatus);
+    }
+  });
+}
+
+function mergeCurrentReview() {
+  if (!rbId) { return; }
+  chrome.extension.sendRequest({type: "mergeDiff", rbId: rbId}, function(success, textStatus) {
+    if (success) { 
+      reloadReview(); 
+    } else {
+      alert("ERROR: " + textStatus);
+    }
+  });
+}
+
+function reloadReview() {
+  if (!rbId) { return; }
+  loadRb(rbId);
+}
+
 function initialize() {
-  getRbUrl(function(url) { 
-    rbUrl = url; 
+  loadSettings(function(settings) { 
+    console.log("SETTINGS", settings);
+    if (!settings) {
+      alert("Unable to load Gerrit settings or connect to Gerrit. Check what's wrong and refresh.");
+      return;
+    }
+    rbUrl = settings.url; 
+    rbUser = settings.user;
     if (!rbUrl) {
       showNeedSetup();
+      return;
+    }
+    if (!settings.auth) {
+      showNeedLogin();
       return;
     }
     $(window).hashchange(function() {
