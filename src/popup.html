@@ -4,10 +4,15 @@
 html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 12px;}
 a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
 
-.status { background-color: #f9f3c9; padding: 10px; border:1px solid #c9c399; width:350px; }
+body {
+  width: 300px;
+  padding: 10px;
+}
+
+.status { background-color: #f9f3c9; padding: 10px; border:1px solid #c9c399; margin-bottom: 10px;}
 .status-text.approved {color: #00681c; font-weight: bold;}
 
-.actions { margin-top: 10px; }
+.actions {}
 .action-approve { font-weight: bold; }
 .actions a { margin-right: 10px; }
 
@@ -19,19 +24,14 @@ a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
 <script type="text/javascript" src="js/popup.js"></script>
 </head>
 <body>
-<div class="status">
-  <strong>Status:</strong> <span class="status-text">Loading...</span>
-</div>
-<div class="actions norm" style="display:none">
-  <a class="button action-approve">Quick Approve</a>
-  <a class="button action-view">View Review</a>
-  <a class="button action-diff">View Diffs</a>
-</div>
 <div class="actions unauthorized" style="display:none;">
-  <a class="button action-login">Log into ReviewBoard</a>
+  <div class="status">We cannot talk to Gerrit.</div>
+  <a class="button action-login">Login</a>
+  <a class="button action-setup">Setup</a>
 </div>
 <div class="actions unsetup" style="display:none;">
-  <a class="button action-setup">Setup ReviewBoard extension</a>
+  <div class="status">You have not set up your Gerrit extension.</div>
+  <a class="button action-setup">Setup</a>
 </div>
 </body>
 </html>

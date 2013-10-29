@@ -64,7 +64,7 @@ function mergeRb(rbId, callback) {
     console.log("XHR", xhr);
     callback(false, textStatus);
   }
-  ajax(url, onSuccess, onError, 'POST');
+  ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
 }
 
 
@@ -82,10 +82,11 @@ function initializeAuth(callback) {
     console.log("User: " + _GERRIT_USER + ", email: " + _GERRIT_EMAIL + ", auth: " + _GERRIT_AUTH);
     callback(true);
   }
-  function onError() {
+  function onError(xhr, textStatus, errorThrown) {
+    window.xhr = xhr;
     callback(false);
   }
-  $.ajax(rbUrl(), {success: onSuccess, error: onError});
+  $.ajax(rbUrl(), {success: onSuccess, error: onError, timeout: 1000});
 }
 
 function reviewStatus(rbId, callback) {
@@ -106,7 +107,7 @@ function reviewStatus(rbId, callback) {
     }
   };
 
-  ajax("/changes/" + rbId + "/revisions/current/review", onSuccess, onError);
+  ajax("/changes/" + rbId + "/detail", onSuccess, onError);
 }
 
 function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
@@ -236,7 +237,7 @@ function showDiffs(rbId) {
   chrome.tabs.create({url:rbUrl() + "/" + rbId});
 }
 
-function login(rbId) {
+function login() {
   chrome.tabs.create({url:rbUrl()});
 }
 

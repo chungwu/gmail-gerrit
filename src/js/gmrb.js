@@ -180,17 +180,11 @@ function reviewStatus(reviewData) {
     return 'Abandoned';
   } else if (isApproved(reviewData)) {
     return 'Approved';
+  } else if (reviewData.reviewed) {
+    return 'In Review';
   } else {
     return 'New';
   }
-}
-
-function showRbAction(id) {
-  rbId = id;
-  chrome.extension.sendRequest({type: "showRbAction", rbId: id});
-
-  $sidebarBoxes = $("div[role='main'] .nH.anT .nH");
-  $rbBox.insertAfter($($sidebarBoxes[0]));
 }
 
 function hideRbAction() {
@@ -205,24 +199,6 @@ function showNeedSetup() {
 
 function showNeedLogin() {
   chrome.extension.sendRequest({type: "showLogin"});
-}
-
-function viewDiff() {
-  if (rbId) {
-    chrome.extension.sendRequest({type: "viewDiff", rbId: rbId});
-  }
-}
-
-function approve() {
-  if (rbId) {
-    chrome.extension.sendRequest(
-      {type: "approve", rbId: rbId}, 
-      function(success) {
-        if (success) {
-          alert("Approved!");
-        }
-      });
-  }
 }
 
 function loadSettings(callback) {
@@ -307,7 +283,6 @@ function initialize() {
 }
 
 function extractRbIdFromUrl(url) {
-  console.log("EXTRACTING from", url);
   var m = re_rgid.exec(url);
   if (m && m.length >= 2) {
     return m[1];
@@ -316,8 +291,6 @@ function extractRbIdFromUrl(url) {
 }
 
 function extractRbId() {
-  //var $canvas = $("#canvas_frame").contents();
-  //var $thread = $("div[role='main']", $canvas);
   var $thread = $("div[role='main']");
   var $anchor = $("a[href*='" + rbUrl + "']", $thread);
   if ($anchor.length > 0) {
@@ -329,7 +302,6 @@ function extractRbId() {
 }
 
 function checkRb() {
-  console.log("Checking rb...");
   var id = extractRbId();
   console.log("Found rb", id);
   if (id != rbId) {
@@ -344,8 +316,6 @@ function checkRb() {
 function handleKeyPress(e) {
   if (e.which == 119) {
     viewDiff();
-  } else if (e.which == 87) {
-    approve();
   }
 }
 
