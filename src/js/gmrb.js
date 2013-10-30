@@ -16,6 +16,9 @@ $(".view-button", $rbBox).click(function() { viewCurrentReview(); });
 $(".approve-button", $rbBox).click(function() { approveCurrentReview(); });
 $(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
 
+var greenColor = "#045900";
+var redColor = "#b30000";
+
 function loadRb(id) {
   function callback(data) {
     if (!data) {
@@ -44,14 +47,14 @@ function loadRb(id) {
       }
     }
     if (status == "Approved") {
-      $status.css("color", "green");
+      $status.css("color", greenColor);
       if (isOwner) {
         $(".merge-button", $rbBox).show();
       }
     } else if (status == "Abandoned") {
-      $status.css("color", "red");
+      $status.css("color", redColor);
     } else if (status == "Merged") {
-      $status.css("color", "green");
+      $status.css("color", greenColor);
     } else {
       if (isReviewer) {
         $(".approve-button", $rbBox).show();
@@ -164,27 +167,32 @@ function _appendDiffs($container, lines) {
 
   var $box = $("<div/>").appendTo($container).hide();
 
+  var $cur = $box;
   for (var i=diffStart; i < lines.length; i++) {
     var line = lines[i];
     if (line == "--") {
       break;
     }
-    var $line = $("<div/>").text(line).css("fontFamily", "monospace");
+    var $line = $("<span/>").text(line).css("fontFamily", "monospace").append("<br/>");
     if (line.indexOf("+") == 0) { // is add
-      $line.css("color", "green");
+      $line.css("color", greenColor);
     } else if (line.indexOf("-") == 0) { // is remove
-      $line.css("color", "red");
-    }
-    if (line.indexOf("diff --git") == 0) { // is new file
-      $line.prepend("<br/>");
+      $line.css("color", redColor);
+    } else if (line.indexOf("diff --git") == 0) { // is new file
+      $cur = highlightBox("#fcfcfc", "#ddd").appendTo($box);
+      $line.append("<br/>");
+      $line.css({fontWeight: "bold", fontSize: "1.3em"});
+    } else if (line.indexOf("@@") == 0) {
       $line.css("fontWeight", "bold");
-    }  
-    $box.append($line);
+    }
+    $cur.append($line);
   }
 }
 
-function highlightBox() {
-  return $("<div/>").css({backgroundColor: "#ffffcc", padding: "10px", margin: "10px 0", border: "1px solid #ccc"});
+function highlightBox(color, border) {
+  color = color || "#ffffdd";
+  border = border || "#ccc";
+  return $("<div/>").css({backgroundColor: color, padding: "10px", margin: "10px 0", border: "1px solid " + border});
 }
 
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
@@ -206,7 +214,7 @@ function formatComment($msg, text, reviewData) {
     var $line = $("<div/>").text(line);
 
     if (line.indexOf("Patch Set") == 0) { // is patch set label
-      var color = line.indexOf("+2") >= 0 ? "green" : line.indexOf("-1") >= 0 ? "red" : line.indexOf("-2") >= 0 ? "red" : "inherit";
+      var color = line.indexOf("+2") >= 0 ? greenColor : line.indexOf("-1") >= 0 ? redColor : line.indexOf("-2") >= 0 ? redColor : "inherit";
       $line.css("color", color);
       $line.css("fontSize", "1.3em");
       $line.css("fontWeight", "bold");
