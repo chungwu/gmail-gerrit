@@ -5,8 +5,8 @@ function contentHandler(request, sender, callback) {
     reviewStatus(request.rbId, function(data) { callback(data); });
   } else if (request.type == "viewDiff") {
     showDiffs(request.rbId);
-  } else if (request.type == "approveDiff") {
-    approveRb(request.rbId, callback);
+  } else if (request.type == "commentDiff") {
+    commentRb(request.rbId, request.approve, request.comment, callback);
   } else if (request.type == "mergeDiff") {
     mergeRb(request.rbId, callback);
   } else if (request.type == "settings") {
@@ -39,7 +39,7 @@ function hideRbAction(tabId) {
   chrome.pageAction.hide(tabId);
 }
 
-function approveRb(rbId, callback) {
+function commentRb(rbId, approve, comment, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/review';
   function onSuccess(data, textStatus, xhr) {
@@ -49,9 +49,14 @@ function approveRb(rbId, callback) {
     console.log("XHR", xhr);
     callback(false, textStatus);
   }
-  ajax(url, onSuccess, onError, 'POST', {
-    labels: {"Code-Review": 2}
-  });
+  var request = {};
+  if (approve) {
+    request.labels = {"Code-Review": 2}
+  }
+  if (comment) {
+    request.message = comment;
+  }
+  ajax(url, onSuccess, onError, 'POST', request);
 }
 
 function mergeRb(rbId, callback) {

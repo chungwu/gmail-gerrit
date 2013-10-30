@@ -6,14 +6,24 @@ var $rbBox = $(
   "<div class='nH' style='padding-bottom: 20px'>" +
     "<div class='am6'></div>" + 
     "<h4 style='margin-bottom: 10px'>Gerrit: <span class='status'></span></h4>" + 
-    "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>View</span>" +
-    "<span class='action-button approve-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Approve</span>" +
-    "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' target='_blank_'>Merge</span>" +
+    "<div>" +
+      "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>View</span>" +
+      "<span class='comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Comment</span>" +
+    "</div>" +
+    "<div>" +
+      "<span class='action-button approve-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO' style='margin-bottom: 10px'>Approve</span>" +
+      "<span class='action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; say...</span>" +
+    "</div>" +
+    "<div>" +
+      "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Merge</span>" +
+    "</div>" +
   "</div>"
 );
 
 $(".view-button", $rbBox).click(function() { viewCurrentReview(); });
-$(".approve-button", $rbBox).click(function() { approveCurrentReview(); });
+$(".approve-button", $rbBox).click(function() { commentCurrentReview(true, false); });
+$(".approve-comment-button", $rbBox).click(function() { commentCurrentReview(true, true); });
+$(".comment-button", $rbBox).click(function() { commentCurrentReview(false, true); });
 $(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
 
 var greenColor = "#045900";
@@ -58,6 +68,7 @@ function loadRb(id) {
     } else {
       if (isReviewer) {
         $(".approve-button", $rbBox).show();
+        $(".approve-comment-button", $rbBox).show();
       }
     }
 
@@ -308,9 +319,16 @@ function viewCurrentReview() {
   chrome.extension.sendRequest({type: "viewDiff", rbId: rbId});  
 }
 
-function approveCurrentReview() {
+function commentCurrentReview(approve, comment) {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "approveDiff", rbId: rbId}, function(success, textStatus) {
+  var commentText = null;
+  if (comment) {
+    commentText = prompt("Say your piece.");
+    if (!commentText) {
+      return;
+    }
+  }
+  chrome.extension.sendRequest({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(success, textStatus) {
     if (success) { 
       reloadReview(); 
     } else {
