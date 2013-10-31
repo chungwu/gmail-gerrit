@@ -3,19 +3,20 @@ var rbUrl = null;
 var rbEmail = null;
 var re_rgid = new RegExp(".*/(\\d+)$");
 var $rbBox = $(
-  "<div class='nH' style='padding-bottom: 20px'>" +
-    "<div class='am6'></div>" + 
-    "<h4 style='margin-bottom: 10px'>Gerrit: <span class='status'></span></h4>" + 
+  "<div class='nH gerrit-box' style='margin-bottom:10px;padding:10px 0;border-bottom:1px solid #d8d8d8;'>" +
+    "<h4 style='margin: 10px 0'>Gerrit: <span class='status'></span></h4>" + 
     "<div>" +
       "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>View</span>" +
       "<span class='comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Comment</span>" +
     "</div>" +
     "<div>" +
       "<span class='action-button approve-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO' style='margin-bottom: 10px'>Approve</span>" +
-      "<span class='action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; say...</span>" +
+      "<span class='action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; comment</span>" +
+      "<span class='action-button approve-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; submit</span>" +
     "</div>" +
     "<div>" +
-      "<span class='action-button merge-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Merge</span>" +
+      "<span class='action-button submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Submit</span>" +
+      "<span class='action-button rebase-submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Rebase &amp; submit</span>" +
     "</div>" +
   "</div>"
 );
@@ -23,8 +24,10 @@ var $rbBox = $(
 $(".view-button", $rbBox).click(function() { viewCurrentReview(); });
 $(".approve-button", $rbBox).click(function() { commentCurrentReview(true, false); });
 $(".approve-comment-button", $rbBox).click(function() { commentCurrentReview(true, true); });
+$(".approve-submit-button", $rbBox).click(function() { approveSubmitCurrentReview(true, true); });
 $(".comment-button", $rbBox).click(function() { commentCurrentReview(false, true); });
-$(".merge-button", $rbBox).click(function() { mergeCurrentReview(); });
+$(".submit-button", $rbBox).click(function() { submitCurrentReview(); });
+$(".rebase-submit-button", $rbBox).click(function() { rebaseSubmitCurrentReview(); });
 
 var greenColor = "#045900";
 var redColor = "#b30000";
@@ -42,8 +45,8 @@ function loadRb(id) {
     console.log("STATUS", status);
     chrome.extension.sendRequest({type: "showRbAction", rbId: id, status: status});
 
-    $sidebarBoxes = $("div[role='main'] .nH.anT .nH");
-    $rbBox.insertAfter($($sidebarBoxes[0]));
+    var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
+    $sidebarBoxes.prepend($rbBox);
     
     $(".action-button", $rbBox).hide();
 
@@ -59,15 +62,25 @@ function loadRb(id) {
     if (status == "Approved") {
       $status.css("color", greenColor);
       if (isOwner) {
-        $(".merge-button", $rbBox).show();
+        $(".submit-button", $rbBox).show();
       }
     } else if (status == "Abandoned") {
       $status.css("color", redColor);
     } else if (status == "Merged") {
       $status.css("color", greenColor);
+    } else if (status == "Merge Pending") {
+      /* Rebase not supported yet
+      if (isOwner) {
+        $(".rebase-submit-button").show();
+      }
+      */
     } else {
-      if (isReviewer) {
+      if (isReviewer || isOwner) {
         $(".approve-button", $rbBox).show();
+      }
+      if (isOwner) {
+        $(".approve-submit-button", $rbBox).show();
+      } else if (isReviewer) {
         $(".approve-comment-button", $rbBox).show();
       }
     }
@@ -147,17 +160,19 @@ function _trimLines(lines) {
   return lines.slice(indexOf(lines, _FUNC_NOT_EMPTY), indexOf(lines, _FUNC_NOT_EMPTY, true) + 1);
 }
 
-function _appendDiffs($container, lines) {
+function _appendDiffs($container, lines, opt_hideHeader) {
   lines = lines.slice(indexOf(lines, function(l) { return l != ""; }));
 
   var diffStart = indexOf(lines, function(l) { return l.indexOf("Change-Id:") == 0; });
 
-  var $header = highlightBox().appendTo($container);
-  var headerLines = _trimLines(lines.slice(0, diffStart));
-  for (var i=0; i<headerLines.length; i++) {
-    var $line = $("<span/>").text(headerLines[i]).append("<br/>").appendTo($header);
-    if (i == 0) {
-      $line.css({fontWeight: "bold", fontSize: "1.3em"});
+  if (!opt_hideHeader) {
+    var $header = highlightBox().appendTo($container);
+    var headerLines = _trimLines(lines.slice(0, diffStart));
+    for (var i=0; i<headerLines.length; i++) {
+      var $line = $("<span/>").text(headerLines[i]).append("<br/>").appendTo($header);
+      if (i == 0) {
+        $line.css({fontWeight: "bold", fontSize: "1.3em"});
+      }
     }
   }
 
@@ -257,6 +272,14 @@ function formatMerged($msg, text, reviewData) {
 
 function formatMergeFailed($msg, text, reviewData) {
   $msg.empty().html("<h3>Merge Failed</h3>");
+  var lines = text.split('\n');
+  var $ul = $("<ul/>").appendTo($msg);
+  for (var i=0; i<lines.length; i++) {
+    var line = lines[i];
+    if (line.indexOf("*") == 0) {
+      $("<li/>").text($.trim(line.substring(1))).appendTo($ul);
+    }
+  }
 }
 
 var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
@@ -266,7 +289,7 @@ function formatNewPatch($msg, text, reviewData) {
   
   var lines = text.split("\n");
   var diffStart = indexOf(lines, function(l) { return l.indexOf(".....") == 0; })+1;
-  _appendDiffs($msg, lines.slice(diffStart));
+  _appendDiffs($msg, lines.slice(diffStart), true);
 }
 
 function isApproved(reviewData) {
@@ -329,21 +352,39 @@ function commentCurrentReview(approve, comment) {
     }
   }
   chrome.extension.sendRequest({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(success, textStatus) {
-    if (success) { 
-      reloadReview(); 
-    } else {
+    reloadReview(); 
+    if (!success) { 
       alert("ERROR: " + textStatus);
     }
   });
 }
 
-function mergeCurrentReview() {
+function approveSubmitCurrentReview() {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "mergeDiff", rbId: rbId}, function(success, textStatus) {
-    if (success) { 
-      reloadReview(); 
-    } else {
-      alert("ERROR: " + textStatus);
+  chrome.extension.sendRequest({type: "approveSubmitDiff", rbId: rbId}, function(success, msg) {
+    reloadReview(); 
+    if (!success) { 
+      alert("ERROR: " + msg);
+    }
+  });
+}
+
+function submitCurrentReview() {
+  if (!rbId) { return; }
+  chrome.extension.sendRequest({type: "submitDiff", rbId: rbId}, function(success, msg) {
+    reloadReview();
+    if (!success) { 
+      alert("ERROR! " + msg);
+    }
+  });
+}
+
+function rebaseSubmitCurrentReview() {
+  if (!rbId) { return; }
+  chrome.extension.sendRequest({type: "rebaseSubmitDiff", rbId: rbId}, function(success, msg) {
+    reloadReview(); 
+    if (!success) { 
+      alert("ERROR: " + msg);
     }
   });
 }
@@ -413,6 +454,8 @@ function checkRb() {
 function handleKeyPress(e) {
   if (e.which == 119) {
     viewCurrentReview();
+  } else if (e.which == 87) {
+    commentCurrentReview(true, false);
   }
 }
 

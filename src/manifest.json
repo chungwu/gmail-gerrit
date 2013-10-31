@@ -1,6 +1,6 @@
 {
-  "name": "Gerrit Plugin for Gmail",
-  "short_name": "Gerrit for Gmail",
+  "name": "Gerrit Plugin for Your Mail",
+  "short_name": "Gerrit for Mail",
   "version": "0.1",
   "manifest_version": 2,
   "description": "Extension for adding basic Gerrit integration to Gmail.",

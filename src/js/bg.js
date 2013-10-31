@@ -7,16 +7,20 @@ function contentHandler(request, sender, callback) {
     showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
     commentRb(request.rbId, request.approve, request.comment, callback);
-  } else if (request.type == "mergeDiff") {
-    mergeRb(request.rbId, callback);
+  } else if (request.type == "submitDiff") {
+    submitRb(request.rbId, callback);
+  } else if (request.type == "rebaseSubmitDiff") {
+    rebaseSubmitRb(request.rbId, callback);
+  } else if (request.type == "approveSubmitDiff") {
+    approveSubmitRb(request.rbId, callback);
   } else if (request.type == "settings") {
     loadSettings(callback);
   } else if (request.type == "showSetup") {
     chrome.pageAction.show(sender.tab.id);
-    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/reviewboard-error.png"});
+    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/gerrit-error.png"});
   } else if (request.type == "showLogin") {
     chrome.pageAction.show(sender.tab.id);
-    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/reviewboard-error.png"});
+    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/gerrit-error.png"});
   }
 }
 
@@ -32,7 +36,7 @@ function showRbAction(tabId, rbId, status) {
 }
 
 function showRbError() {
-  chrome.pageAction.setIcon({tabId:tabId, path:"icons/reviewboard-error.png"});
+  chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-error.png"});
 }
 
 function hideRbAction(tabId) {
@@ -47,7 +51,7 @@ function commentRb(rbId, approve, comment, callback) {
   }
   function onError(xhr, textStatus, errorThrown) {
     console.log("XHR", xhr);
-    callback(false, textStatus);
+    callback(false, xhr.responseText);
   }
   var request = {};
   if (approve) {
@@ -59,7 +63,7 @@ function commentRb(rbId, approve, comment, callback) {
   ajax(url, onSuccess, onError, 'POST', request);
 }
 
-function mergeRb(rbId, callback) {
+function submitRb(rbId, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/submit';
   function onSuccess(data, textStatus, xhr) {
@@ -67,11 +71,45 @@ function mergeRb(rbId, callback) {
   }
   function onError(xhr, textStatus, errorThrown) {
     console.log("XHR", xhr);
-    callback(false, textStatus);
+    callback(false, xhr.responseText);
   }
   ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
 }
 
+function approveSubmitRb(rbId, callback) {
+ commentRb(rbId, true, false, function(success, msg) {
+    if (success) {
+      // after approve, submit again
+      submitRb(rbId, callback);
+    } else {
+      callback(false, msg);
+    }
+  });
+}
+
+function rebaseSubmitRb(rbId, callback) {
+  reviewStatus(rbId, function(data, msg) {
+    if (!data) { 
+      callback(false, msg);
+    } else {
+      console.log("Loaded", data);
+      console.log("Patch set", data.revisions[data.current_revision]._number);
+      function onSuccess() {
+        approveSubmitRb(rbId, callback);
+      }
+      function onError() {
+        callback(false, xhr.responseText);
+      }
+      //ajax('/changes/' + rbId + '/rebase', onSuccess, onError, 'POST');
+      var url = '/gerrit_ui/rpc/ChangeManageService';
+      ajax(url, onSuccess, onError, 'POST', {
+        jsonrpc: "2.0", method: "rebaseChange", 
+        params: [{changeId:{id:data._number}, patchSetId:data.revisions[data.current_revision]._number}],
+        id: 2, xsrfKey: _GERRIT_AUTH
+      });
+    }
+  });
+}
 
 _RE_AUTH = /xGerritAuth="([^"]+)"/
 _RE_USER = /"userName":"([^"]+)"/
@@ -112,13 +150,13 @@ function reviewStatus(rbId, callback) {
   };
   var onError = function(xhr, textStatus, errorThrown) {
     console.log("ERROR:", xhr);
-    if (xhr.status == 401 || xhr.status == 405) {
-      var result = {status: "unauthorized"};
-      callback(result);
-    }
+    callback(false, xhr.responseText);
   };
 
-  ajax("/changes/" + rbId + "/detail", onSuccess, onError);
+
+  //var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED'];
+  //ajax("/changes/" + rbId + "/detail", onSuccess, onError, 'GET', {o: options}, {traditional: true});
+  ajax("/changes/" + rbId + "/revisions/current/review", onSuccess, onError);
 }
 
 function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
