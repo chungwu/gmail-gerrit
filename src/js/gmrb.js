@@ -216,7 +216,9 @@ function _appendDiffs($container, lines, opt_hideHeader) {
       break;
     }
     var $line = $("<div/>").text(line).css({fontFamily: "monospace", padding: "3px 0"});
-    if (line == "") {
+    if (inFileDiff && line == "") {
+      continue;
+    } else if (line == "") {
       $line.append("<br/>");
     } else if (inFileDiff && line[0] == "+") { // is add
       //$line.css({color: greenColor, backgroundColor: greenBg});
@@ -247,6 +249,7 @@ function formatComment($msg, text, reviewData) {
   var lines = text.split("\n");
   $msg.empty();
   var $box = $msg;
+  var inFileComment = false;
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i];
 
@@ -255,11 +258,15 @@ function formatComment($msg, text, reviewData) {
     }
 
     if (_RE_COMMENT_COUNT.test(line)) {
+      // also skip the next line
+      i += 1;
       continue;
     }
 
     var $line = $("<div/>").text(line).css("padding", "3px 0");
-    if (line == "") {
+    if (inFileComment && line == "") {
+      continue;
+    } else if (line == "") {
       $line.append("<br/>");
     } else if (line.indexOf("Patch Set") == 0) { // is patch set label
       var color = line.indexOf("+2") >= 0 ? greenColor : line.indexOf("-1") >= 0 ? redColor : line.indexOf("-2") >= 0 ? redColor : "inherit";
@@ -269,8 +276,8 @@ function formatComment($msg, text, reviewData) {
       $box = highlightBox().appendTo($msg);
     } else if (line.indexOf("File ") == 0) { // is file title
       $line.css({fontFamily: "monospace", fontSize: "1.3em", fontWeight: "bold"});
-      $line.append("<br/><br/>");
       $box = highlightBox().appendTo($msg);
+      inFileComment = true;
     } else if (line.indexOf("Line ") == 0) { // is line diff
       $line.css("fontFamily", "monospace");
       $line.prepend("<br/>");

@@ -1,7 +1,7 @@
 {
   "name": "Gerrit Plugin for Gmail",
   "short_name": "Gerrit for Gmail",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "manifest_version": 2,
   "description": "Extension for adding basic Gerrit integration to Gmail.",
   "background": {
