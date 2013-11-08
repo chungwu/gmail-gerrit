@@ -33,7 +33,7 @@ $(".rebase-submit-button", $rbBox).click(function() { rebaseSubmitCurrentReview(
 var greenColor = "#045900";
 var redColor = "#b30000";
 
-function loadRb(id) {
+function loadDiff(id) {
   function callback(data) {
     console.log("Loaded rb", data);
     if (!data) {
@@ -42,12 +42,11 @@ function loadRb(id) {
       return;
     }
     rbId = id;
-    console.log("RB", data);
+    console.log("Diff", data);
     hidePageAction();
 
     var status = reviewStatus(data);
     console.log("STATUS", status);
-    chrome.extension.sendRequest({type: "showRbAction", rbId: id, status: status});
 
     var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
     $sidebarBoxes.prepend($rbBox);
@@ -97,17 +96,16 @@ function loadRb(id) {
       if (!rbAuth) {
         showNeedLogin();
       } else {
-        chrome.extension.sendRequest({type: "loadRb", rbId: id}, callback);
+        chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
       }
     });
   } else {
-    chrome.extension.sendRequest({type: "loadRb", rbId: id}, callback);
+    chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
   }
 }
 
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
-  console.log("Formatting thread", $thread);
   var curId = rbId;
   function doFormat() {
     if (!rbId || curId != rbId) {
@@ -127,9 +125,8 @@ function formatCard($card, reviewData) {
   var text = $msg.text();
   if (!$.trim(text)) {
     return;
-  } else {
-    console.log("Formatting card", $card);
   }
+
   if (text.indexOf("Gerrit-MessageType: newchange") >= 0) {
     formatNewChange($msg, text, reviewData);
   } else if (text.indexOf("Gerrit-MessageType: comment") >= 0) {
@@ -337,31 +334,34 @@ function reviewStatus(reviewData) {
   }
 }
 
-function hideRbAction() {
+function hidePageAction() {
   rbId = null;
   $rbBox.detach();
   hidePageAction();
 }
 
 function hidePageAction() {
-  chrome.extension.sendRequest({type: "hideRbAction"});
+  chrome.runtime.sendMessage({type: "hidePageAction"});
 }
 
 function showNeedSetup() {
-  chrome.extension.sendRequest({type: "showSetup"});
+  chrome.runtime.sendMessage({type: "showSetup"});
 }
 
 function showNeedLogin() {
-  chrome.extension.sendRequest({type: "showLogin"});
+  chrome.runtime.sendMessage({type: "showLogin"});
 }
 
 function loadSettings(callback) {
-  chrome.extension.sendRequest({type: "settings"}, callback);
+  console.log("Loading settings...");
+  chrome.runtime.sendMessage({type: "settings"}, function(resp) {
+    console.log("Resp", resp);
+    callback(resp);});
 }
 
 function viewCurrentReview() {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "viewDiff", rbId: rbId});  
+  chrome.runtime.sendMessage({type: "viewDiff", rbId: rbId});  
 }
 
 function commentCurrentReview(approve, comment) {
@@ -373,7 +373,7 @@ function commentCurrentReview(approve, comment) {
       return;
     }
   }
-  chrome.extension.sendRequest({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(success, textStatus) {
+  chrome.runtime.sendMessage({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(success, textStatus) {
     reloadReview(); 
     if (!success) { 
       alert("ERROR: " + textStatus);
@@ -383,7 +383,7 @@ function commentCurrentReview(approve, comment) {
 
 function approveSubmitCurrentReview() {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "approveSubmitDiff", rbId: rbId}, function(success, msg) {
+  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: rbId}, function(success, msg) {
     reloadReview(); 
     if (!success) { 
       alert("ERROR: " + msg);
@@ -393,7 +393,7 @@ function approveSubmitCurrentReview() {
 
 function submitCurrentReview() {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "submitDiff", rbId: rbId}, function(success, msg) {
+  chrome.runtime.sendMessage({type: "submitDiff", rbId: rbId}, function(success, msg) {
     if (!success) { 
       alert("ERROR! " + msg);
     }
@@ -403,7 +403,7 @@ function submitCurrentReview() {
 
 function rebaseSubmitCurrentReview() {
   if (!rbId) { return; }
-  chrome.extension.sendRequest({type: "rebaseSubmitDiff", rbId: rbId}, function(success, msg) {
+  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: rbId}, function(success, msg) {
     reloadReview(); 
     if (!success) { 
       alert("ERROR: " + msg);
@@ -413,7 +413,7 @@ function rebaseSubmitCurrentReview() {
 
 function reloadReview() {
   if (!rbId) { return; }
-  loadRb(rbId);
+  loadDiff(rbId);
 }
 
 function initializeSettings(callback) {
@@ -440,16 +440,16 @@ function initialize() {
       showNeedLogin();
     }
     $(window).hashchange(function() {
-      setTimeout(checkRb, 100);
+      setTimeout(checkDiff, 100);
     });
     setTimeout(function() {
       $("body").keypress(handleKeyPress);
-      checkRb();
+      checkDiff();
     }, 3000);
   });
 }
 
-function extractRbIdFromUrl(url) {
+function extractDiffIdFromUrl(url) {
   var m = re_rgid.exec(url);
   if (m && m.length >= 2) {
     return m[1];
@@ -457,25 +457,25 @@ function extractRbIdFromUrl(url) {
   return null;
 }
 
-function extractRbId() {
+function extractDiffId() {
   var $thread = $("div[role='main']");
   var $anchor = $("a[href*='" + rbUrl + "']", $thread);
   if ($anchor.length > 0) {
     var url = $anchor.attr("href");
-    return extractRbIdFromUrl(url);
+    return extractDiffIdFromUrl(url);
   } else {
     return null;
   }
 }
 
-function checkRb() {
-  var id = extractRbId();
+function checkDiff() {
+  var id = extractDiffId();
   console.log("Found rb", id);
   if (id != rbId) {
     if (id) {
-      loadRb(id);
+      loadDiff(id);
     } else {
-      hideRbAction();
+      hidePageAction();
     }
   }
 }

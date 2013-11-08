@@ -1,51 +1,38 @@
-chrome.extension.onRequest.addListener(contentHandler);
-
 function contentHandler(request, sender, callback) {
-  if (request.type == "loadRb") {
-    reviewStatus(request.rbId, function(data) { callback(data); });
+  if (request.type == "loadDiff") {
+    return reviewStatus(request.rbId, callback);
   } else if (request.type == "viewDiff") {
-    showDiffs(request.rbId);
+    return showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
-    commentRb(request.rbId, request.approve, request.comment, callback);
+    return commentDiff(request.rbId, request.approve, request.comment, callback);
   } else if (request.type == "submitDiff") {
-    submitRb(request.rbId, callback);
+    return submitDiff(request.rbId, callback);
   } else if (request.type == "rebaseSubmitDiff") {
-    rebaseSubmitRb(request.rbId, callback);
+    return rebaseSubmitDiff(request.rbId, callback);
   } else if (request.type == "approveSubmitDiff") {
-    approveSubmitRb(request.rbId, callback);
+    return approveSubmitDiff(request.rbId, callback);
   } else if (request.type == "settings") {
-    loadSettings(callback);
+    return loadSettings(callback);
   } else if (request.type == "showSetup") {
-    chrome.pageAction.show(sender.tab.id);
-    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/gerrit-error.png"});
+    return showPageActionError(sender.tab.id);
   } else if (request.type == "showLogin") {
-    chrome.pageAction.show(sender.tab.id);
-    chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/gerrit-error.png"});
-  } else if (request.type == "hideRbAction") {
-    hideRbAction(sender.tab.id);
+    return showPageActionError(sender.tab.id);
+  } else if (request.type == "hidePageAction") {
+    return hidePageAction(sender.tab.id);
   }
 }
+chrome.runtime.onMessage.addListener(contentHandler);
 
-function showRbAction(tabId, rbId, status) {
-  if (status == "unsetup" || status == "unauthorized") {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-error.png"});
-  } else if (status == "approved") {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-approved.png"});      
-  } else {
-    chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit.png"});
-  }
+function showPageActionError(tabId) {
   chrome.pageAction.show(tabId);
-}
-
-function showRbError() {
   chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-error.png"});
 }
 
-function hideRbAction(tabId) {
+function hidePageAction(tabId) {
   chrome.pageAction.hide(tabId);
 }
 
-function commentRb(rbId, approve, comment, callback) {
+function commentDiff(rbId, approve, comment, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/review';
   function onSuccess(data, textStatus, xhr) {
@@ -63,9 +50,10 @@ function commentRb(rbId, approve, comment, callback) {
     request.message = comment;
   }
   ajax(url, onSuccess, onError, 'POST', request);
+  return true;
 }
 
-function submitRb(rbId, callback) {
+function submitDiff(rbId, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/submit';
   function onSuccess(data, textStatus, xhr) {
@@ -77,20 +65,22 @@ function submitRb(rbId, callback) {
     callback(false, xhr.responseText);
   }
   ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
+  return true;
 }
 
-function approveSubmitRb(rbId, callback) {
- commentRb(rbId, true, false, function(success, msg) {
+function approveSubmitDiff(rbId, callback) {
+ commentDiff(rbId, true, false, function(success, msg) {
     if (success) {
       // after approve, submit again
-      submitRb(rbId, callback);
+      submitDiff(rbId, callback);
     } else {
       callback(false, msg);
     }
   });
+  return true;
 }
 
-function rebaseSubmitRb(rbId, callback) {
+function rebaseSubmitDiff(rbId, callback) {
   reviewStatus(rbId, function(data, msg) {
     if (!data) { 
       callback(false, msg);
@@ -98,7 +88,7 @@ function rebaseSubmitRb(rbId, callback) {
       console.log("Loaded", data);
       console.log("Patch set", data.revisions[data.current_revision]._number);
       function onSuccess() {
-        approveSubmitRb(rbId, callback);
+        approveSubmitDiff(rbId, callback);
       }
       function onError() {
         callback(false, xhr.responseText);
@@ -112,6 +102,7 @@ function rebaseSubmitRb(rbId, callback) {
       });
     }
   });
+  return true;
 }
 
 _RE_AUTH = /xGerritAuth="([^"]+)"/
@@ -160,6 +151,8 @@ function reviewStatus(rbId, callback) {
   //var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED'];
   //ajax("/changes/" + rbId + "/detail", onSuccess, onError, 'GET', {o: options}, {traditional: true});
   ajax("/changes/" + rbId + "/revisions/current/review", onSuccess, onError);
+
+  return true;
 }
 
 function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
@@ -298,10 +291,6 @@ function _extractReviewers($page) {
   return reviewers;
 }
 
-function showReview(rbId) {
-  chrome.tabs.create({url:rbUrl() + "/r/" + rbId});
-}
-
 function showDiffs(rbId) {
   chrome.tabs.create({url:rbUrl() + "/" + rbId});
 }
@@ -321,11 +310,13 @@ function rbUrl() {
 function loadSettings(callback) {
   initializeAuth(function(success) {
     if (success) {
+      console.log("Success loading settings; calling callback...", callback);
       callback({user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL});
     } else {
       callback({url: rbUrl(), auth: false});
     }
   });
+  return true;
 }
 
 function getPopup() {
