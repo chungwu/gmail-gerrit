@@ -21,6 +21,8 @@ function contentHandler(request, sender, callback) {
   } else if (request.type == "showLogin") {
     chrome.pageAction.show(sender.tab.id);
     chrome.pageAction.setIcon({tabId:sender.tab.id, path:"icons/gerrit-error.png"});
+  } else if (request.type == "hideRbAction") {
+    hideRbAction(sender.tab.id);
   }
 }
 
@@ -71,6 +73,7 @@ function submitRb(rbId, callback) {
   }
   function onError(xhr, textStatus, errorThrown) {
     console.log("XHR", xhr);
+    console.log("Error response", xhr.responseText);
     callback(false, xhr.responseText);
   }
   ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
@@ -188,9 +191,11 @@ function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
     }
     function onError(xhr, textStatus, errorThrown) {
       window.xhr = xhr;
+      _GERRIT_AUTH = undefined;
       if (auth.step == 1 || xhr.status != 401) {
         console.log("real error!");
         error(xhr, textStatus, errorThrown);
+        return;
       }
   
       // status is 401

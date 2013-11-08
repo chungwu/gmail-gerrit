@@ -7,7 +7,7 @@ function initialize() {
   $(".actions").hide();
   if (!bg.rbUrl()) {
     $(".actions.unsetup").show();
-  } else if (!bg._GERRIT_AUTH) {
+  } else {
     $(".actions.unauthorized").show();
   }
 }

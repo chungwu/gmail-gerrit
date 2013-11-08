@@ -1,6 +1,7 @@
 var rbId = null;
 var rbUrl = null;
 var rbEmail = null;
+var rbAuth = false;
 var re_rgid = new RegExp(".*/(\\d+)$");
 var $rbBox = $(
   "<div class='nH gerrit-box' style='margin-bottom:10px;padding:10px 0;border-bottom:1px solid #d8d8d8;'>" +
@@ -34,12 +35,15 @@ var redColor = "#b30000";
 
 function loadRb(id) {
   function callback(data) {
+    console.log("Loaded rb", data);
     if (!data) {
       showNeedLogin();
+      rbId = rbAuth = null;
       return;
     }
     rbId = id;
     console.log("RB", data);
+    hidePageAction();
 
     var status = reviewStatus(data);
     console.log("STATUS", status);
@@ -87,7 +91,18 @@ function loadRb(id) {
 
     formatThread(data);
   }
-  chrome.extension.sendRequest({type: "loadRb", rbId: id}, callback);
+
+  if (!rbAuth) {
+    initializeSettings(function() {
+      if (!rbAuth) {
+        showNeedLogin();
+      } else {
+        chrome.extension.sendRequest({type: "loadRb", rbId: id}, callback);
+      }
+    });
+  } else {
+    chrome.extension.sendRequest({type: "loadRb", rbId: id}, callback);
+  }
 }
 
 function formatThread(reviewData) {
@@ -238,6 +253,9 @@ function formatComment($msg, text, reviewData) {
     }
 
     var $line = $("<div/>").text(line);
+    if (!$.trim(line)) {
+      $line.append("<br/>");
+    }
 
     if (line.indexOf("Patch Set") == 0) { // is patch set label
       var color = line.indexOf("+2") >= 0 ? greenColor : line.indexOf("-1") >= 0 ? redColor : line.indexOf("-2") >= 0 ? redColor : "inherit";
@@ -322,6 +340,10 @@ function reviewStatus(reviewData) {
 function hideRbAction() {
   rbId = null;
   $rbBox.detach();
+  hidePageAction();
+}
+
+function hidePageAction() {
   chrome.extension.sendRequest({type: "hideRbAction"});
 }
 
@@ -372,10 +394,10 @@ function approveSubmitCurrentReview() {
 function submitCurrentReview() {
   if (!rbId) { return; }
   chrome.extension.sendRequest({type: "submitDiff", rbId: rbId}, function(success, msg) {
-    reloadReview();
     if (!success) { 
       alert("ERROR! " + msg);
     }
+    reloadReview();
   });
 }
 
@@ -394,7 +416,7 @@ function reloadReview() {
   loadRb(rbId);
 }
 
-function initialize() {
+function initializeSettings(callback) {
   loadSettings(function(settings) { 
     console.log("SETTINGS", settings);
     if (!settings) {
@@ -403,11 +425,18 @@ function initialize() {
     }
     rbUrl = settings.url; 
     rbEmail = settings.email;
+    rbAuth = settings.auth;
+    callback(settings);
+  });
+}
+
+function initialize() {
+  initializeSettings(function(settings) { 
     if (!rbUrl) {
       showNeedSetup();
       return;
     }
-    if (!settings.auth) {
+    if (!rbAuth) {
       showNeedLogin();
     }
     $(window).hashchange(function() {
@@ -452,6 +481,10 @@ function checkRb() {
 }
 
 function handleKeyPress(e) {
+  var $target = $(e.target);
+  if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input") {
+    return;
+  }
   if (e.which == 119) {
     viewCurrentReview();
   } else if (e.which == 87) {
