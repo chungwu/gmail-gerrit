@@ -1,6 +1,6 @@
 function contentHandler(request, sender, callback) {
   if (request.type == "loadDiff") {
-    return reviewStatus(request.rbId, callback);
+    return loadDiff(request.rbId, callback);
   } else if (request.type == "viewDiff") {
     return showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
@@ -36,11 +36,11 @@ function commentDiff(rbId, approve, comment, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/review';
   function onSuccess(data, textStatus, xhr) {
-    callback(true, textStatus);
+    callback({success: true});
   }
   function onError(xhr, textStatus, errorThrown) {
     console.log("XHR", xhr);
-    callback(false, xhr.responseText);
+    callback({success: false, err_msg: xhr.responseText});
   }
   var request = {};
   if (approve) {
@@ -57,41 +57,41 @@ function submitDiff(rbId, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/submit';
   function onSuccess(data, textStatus, xhr) {
-    callback(true, textStatus);
+    callback({success: true});
   }
   function onError(xhr, textStatus, errorThrown) {
     console.log("XHR", xhr);
-    console.log("Error response", xhr.responseText);
-    callback(false, xhr.responseText);
+    callback({success: false, err_msg: xhr.responseText});
   }
   ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
   return true;
 }
 
 function approveSubmitDiff(rbId, callback) {
- commentDiff(rbId, true, false, function(success, msg) {
-    if (success) {
+ commentDiff(rbId, true, false, function(resp) {
+    if (resp.success) {
       // after approve, submit again
       submitDiff(rbId, callback);
     } else {
-      callback(false, msg);
+      callback(resp);
     }
   });
   return true;
 }
 
 function rebaseSubmitDiff(rbId, callback) {
-  reviewStatus(rbId, function(data, msg) {
-    if (!data) { 
-      callback(false, msg);
+  loadDiff(rbId, function(resp) {
+    if (!resp.success) { 
+      callback(resp);
     } else {
+      var data = resp.data;
       console.log("Loaded", data);
       console.log("Patch set", data.revisions[data.current_revision]._number);
       function onSuccess() {
         approveSubmitDiff(rbId, callback);
       }
       function onError() {
-        callback(false, xhr.responseText);
+        callback({success: false, err_msg: xhr.responseText});
       }
       //ajax('/changes/' + rbId + '/rebase', onSuccess, onError, 'POST');
       var url = '/gerrit_ui/rpc/ChangeManageService';
@@ -132,21 +132,17 @@ function initializeAuth(callback) {
   $.ajax(rbUrl(), {success: onSuccess, error: onError, timeout: 1000});
 }
 
-function reviewStatus(rbId, callback) {
+function loadDiff(rbId, callback) {
   console.log("Fetching review status for", rbId);
-  if (!rbUrl()) {
-    callback({status: "unsetup"});
-  }
 
   var onSuccess = function(data, textStatus, xhr) {
     console.log("SUCCESS!", data);
-    callback(data);
+    callback({success: true, data: data});
   };
   var onError = function(xhr, textStatus, errorThrown) {
     console.log("ERROR:", xhr);
-    callback(false, xhr.responseText);
+    callback({success: false, err_msg: xhr.responseText});
   };
-
 
   //var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED'];
   //ajax("/changes/" + rbId + "/detail", onSuccess, onError, 'GET', {o: options}, {traditional: true});
@@ -311,9 +307,9 @@ function loadSettings(callback) {
   initializeAuth(function(success) {
     if (success) {
       console.log("Success loading settings; calling callback...", callback);
-      callback({user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL});
+      callback({success: true, data: {user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL}});
     } else {
-      callback({url: rbUrl(), auth: false});
+      callback({success: false, data: {url: rbUrl(), auth: false}});
     }
   });
   return true;

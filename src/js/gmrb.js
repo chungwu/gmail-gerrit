@@ -34,16 +34,15 @@ var greenColor = "#045900";
 var redColor = "#b30000";
 
 function loadDiff(id) {
-  function callback(data) {
-    console.log("Loaded rb", data);
-    if (!data) {
+  function callback(resp) {
+    console.log("Loaded rb", resp);
+    if (!resp.success) {
       showNeedLogin();
       rbId = rbAuth = null;
       return;
     }
     rbId = id;
-    console.log("Diff", data);
-    hidePageAction();
+    var data = resp.data;
 
     var status = reviewStatus(data);
     console.log("STATUS", status);
@@ -92,8 +91,10 @@ function loadDiff(id) {
   }
 
   if (!rbAuth) {
+    console.log("rbAuth not initialized, re-initializing...");
     initializeSettings(function() {
       if (!rbAuth) {
+        console.log("No auth! fail :'(");
         showNeedLogin();
       } else {
         chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
@@ -334,7 +335,7 @@ function reviewStatus(reviewData) {
   }
 }
 
-function hidePageAction() {
+function clearDiff() {
   rbId = null;
   $rbBox.detach();
   hidePageAction();
@@ -353,10 +354,7 @@ function showNeedLogin() {
 }
 
 function loadSettings(callback) {
-  console.log("Loading settings...");
-  chrome.runtime.sendMessage({type: "settings"}, function(resp) {
-    console.log("Resp", resp);
-    callback(resp);});
+  chrome.runtime.sendMessage({type: "settings"}, callback);
 }
 
 function viewCurrentReview() {
@@ -373,29 +371,29 @@ function commentCurrentReview(approve, comment) {
       return;
     }
   }
-  chrome.runtime.sendMessage({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(success, textStatus) {
+  chrome.runtime.sendMessage({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(resp) {
     reloadReview(); 
-    if (!success) { 
-      alert("ERROR: " + textStatus);
+    if (!resp.success) { 
+      alert("ERROR: " + resp.err_msg);
     }
   });
 }
 
 function approveSubmitCurrentReview() {
   if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: rbId}, function(success, msg) {
+  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: rbId}, function(resp) {
     reloadReview(); 
-    if (!success) { 
-      alert("ERROR: " + msg);
+    if (!resp.success) { 
+      alert("ERROR: " + resp.err_msg);
     }
   });
 }
 
 function submitCurrentReview() {
   if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "submitDiff", rbId: rbId}, function(success, msg) {
-    if (!success) { 
-      alert("ERROR! " + msg);
+  chrome.runtime.sendMessage({type: "submitDiff", rbId: rbId}, function(resp) {
+    if (!resp.success) { 
+      alert("ERROR! " + resp.err_msg);
     }
     reloadReview();
   });
@@ -403,10 +401,10 @@ function submitCurrentReview() {
 
 function rebaseSubmitCurrentReview() {
   if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: rbId}, function(success, msg) {
+  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: rbId}, function(resp) {
     reloadReview(); 
-    if (!success) { 
-      alert("ERROR: " + msg);
+    if (!resp.success) { 
+      alert("ERROR: " + resp.err_msg);
     }
   });
 }
@@ -417,12 +415,12 @@ function reloadReview() {
 }
 
 function initializeSettings(callback) {
-  loadSettings(function(settings) { 
-    console.log("SETTINGS", settings);
-    if (!settings) {
+  loadSettings(function(resp) { 
+    if (!resp.success) {
       alert("Unable to load Gerrit settings or connect to Gerrit. Check what's wrong and refresh.");
-      return;
     }
+    var settings = resp.data;
+    console.log("SETTINGS", settings);
     rbUrl = settings.url; 
     rbEmail = settings.email;
     rbAuth = settings.auth;
@@ -472,10 +470,9 @@ function checkDiff() {
   var id = extractDiffId();
   console.log("Found rb", id);
   if (id != rbId) {
+    clearDiff();
     if (id) {
       loadDiff(id);
-    } else {
-      hidePageAction();
     }
   }
 }
