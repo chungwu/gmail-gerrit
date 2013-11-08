@@ -32,6 +32,8 @@ $(".rebase-submit-button", $rbBox).click(function() { rebaseSubmitCurrentReview(
 
 var greenColor = "#045900";
 var redColor = "#b30000";
+var greenBg = "#D4FAD5";
+var redBg = "#FFD9D9";
 
 function loadDiff(id) {
   function callback(resp) {
@@ -207,20 +209,26 @@ function _appendDiffs($container, lines, opt_hideHeader) {
   var $box = $("<div/>").appendTo($container).hide();
 
   var $cur = $box;
+  var inFileDiff = false;
   for (var i=diffStart; i < lines.length; i++) {
     var line = lines[i];
     if (line == "--") {
       break;
     }
-    var $line = $("<span/>").text(line).css("fontFamily", "monospace").append("<br/>");
-    if (line.indexOf("+") == 0) { // is add
-      $line.css("color", greenColor);
-    } else if (line.indexOf("-") == 0) { // is remove
-      $line.css("color", redColor);
-    } else if (line.indexOf("diff --git") == 0) { // is new file
-      $cur = highlightBox("#fcfcfc", "#ddd").appendTo($box);
+    var $line = $("<div/>").text(line).css({fontFamily: "monospace", padding: "3px 0"});
+    if (line == "") {
       $line.append("<br/>");
+    } else if (inFileDiff && line[0] == "+") { // is add
+      //$line.css({color: greenColor, backgroundColor: greenBg});
+      $line.css({backgroundColor: greenBg});
+    } else if (inFileDiff && line[0] == "-") { // is remove
+      //$line.css({color: redColor, backgroundColor: redBg});
+      $line.css({backgroundColor: redBg});
+    } else if (line.indexOf("diff --git") == 0) { // is new file
+      $cur = highlightBox("#fdfdfd", "#eee").appendTo($box);
+      $line.append("<br/><br/>");
       $line.css({fontWeight: "bold", fontSize: "1.3em"});
+      inFileDiff = true;
     } else if (line.indexOf("@@") == 0) {
       $line.css("fontWeight", "bold");
     }
@@ -250,26 +258,20 @@ function formatComment($msg, text, reviewData) {
       continue;
     }
 
-    var $line = $("<div/>").text(line);
-    if (!$.trim(line)) {
+    var $line = $("<div/>").text(line).css("padding", "3px 0");
+    if (line == "") {
       $line.append("<br/>");
-    }
-
-    if (line.indexOf("Patch Set") == 0) { // is patch set label
+    } else if (line.indexOf("Patch Set") == 0) { // is patch set label
       var color = line.indexOf("+2") >= 0 ? greenColor : line.indexOf("-1") >= 0 ? redColor : line.indexOf("-2") >= 0 ? redColor : "inherit";
       $line.css("color", color);
       $line.css("fontSize", "1.3em");
       $line.css("fontWeight", "bold");
       $box = highlightBox().appendTo($msg);
-    }
-
-    if (line.indexOf("File ") == 0) { // is file title
+    } else if (line.indexOf("File ") == 0) { // is file title
       $line.css({fontFamily: "monospace", fontSize: "1.3em", fontWeight: "bold"});
-      $line.append("<br/>");
+      $line.append("<br/><br/>");
       $box = highlightBox().appendTo($msg);
-    }
-
-    if (line.indexOf("Line ") == 0) { // is line diff
+    } else if (line.indexOf("Line ") == 0) { // is line diff
       $line.css("fontFamily", "monospace");
       $line.prepend("<br/>");
     }
