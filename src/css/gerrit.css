@@ -7,7 +7,59 @@
 .gerrit-box h4 {
   margin: 10px 0;
 }
+.gerrit-box h4 img {
+  height: 25px;
+  width: 25px;
+  display: inline-block;
+  vertical-align: middle;
+  margin-right: 5px
+}
+
+.gerrit-box h4 a {
+  color: #222;
+  text-decoration: none;
+}
+
+.gerrit-box h4 a:hover {
+  text-decoration: underline;
+}
 
 .gerrit-box .gerrit-button {
   margin-bottom: 10px;
+}
+
+.gerrit-box .status {
+  color: #555;
+}
+
+.gerrit-box .note {
+  color: #888;
+  font-size: 12px;
+  margin: 10px 0;
+}
+
+.gerrit-box .note a {
+  text-decoration: none;
+  color: #888;
+}
+
+.gerrit-box .note a:hover {
+  text-decoration: underline;
+}
+
+.gerrit-box .note .note-title {
+  font-weight: bold;
+}
+
+.gerrit-box .note .reviewer-approved {
+  color: #045900;
+  font-weight: bold;
+}
+
+.green {
+  color: #045900 !important;
+}
+
+.red {
+  color: #b30000 !important;
 }

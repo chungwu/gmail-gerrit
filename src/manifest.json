@@ -9,7 +9,7 @@
   },
   "options_page": "options.html",
   "content_scripts": [{
-    "js": ["js/jquery.js", "js/jquery.hashchange.js", "js/gmrb.js"],
+    "js": ["js/jquery.js", "js/jquery.hashchange.js", "js/jquery.tmpl.js", "js/gmrb.js"],
     "css": ["css/gerrit.css"],
     "matches": ["http://mail.google.com/*", "https://mail.google.com/*"]
   }],
@@ -19,5 +19,8 @@
   },
   "permissions": [
     "tabs", "http://mail.google.com/", "https://mail.google.com/", "http://*/", "https://*/"
+  ],
+  "web_accessible_resources": [
+    "icons/gerrit-big.png"
   ]
 }

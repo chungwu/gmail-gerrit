@@ -4,9 +4,19 @@ var rbEmail = null;
 var rbAuth = false;
 var re_rgid = new RegExp(".*/(\\d+)$");
 
-var $rbBox = $(
-  "<div class='nH gerrit-box gerrit-sidebox'>" +
-    "<h4>Gerrit: <span class='status'></span></h4>" + 
+var infoBox = (
+  "<div>" +
+    "<h4><img title='Gerrit' src='${chrome.extension.getURL(\"icons/gerrit-big.png\")}'> <a href='${gerritUrl}/${diffId}' target='_blank'>${diffId}</a>: <span class='status'>${status}</span></h4>" + 
+    "<div class='note reviewers'>" +
+      "<span class='note-title'>Reviewers: </span>" +
+      "{%if !reviewers || reviewers.length == 0%}" +
+        "None" +
+      "{%else%}" +
+        "{%each(i, reviewer) reviewers%}" +
+          "${i > 0 ? ', ' : ''}<span class='${reviewer.status == \"approved\" ? \"reviewer-approved\" : \"\"}'>${reviewer.login}</span>" +
+        "{%/each%}" +
+      "{%/if%}" +
+    "</div>" +
     "<div>" +
       "<span class='gerrit-button view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>View</span>" +
       "<span class='gerrit-button comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Comment</span>" +
@@ -23,56 +33,69 @@ var $rbBox = $(
   "</div>"
 );
 
-$(".view-button", $rbBox).click(function() { viewCurrentReview(); });
-$(".approve-button", $rbBox).click(function() { commentCurrentReview(true, false); });
-$(".approve-comment-button", $rbBox).click(function() { commentCurrentReview(true, true); });
-$(".approve-submit-button", $rbBox).click(function() { approveSubmitCurrentReview(true, true); });
-$(".comment-button", $rbBox).click(function() { commentCurrentReview(false, true); });
-$(".submit-button", $rbBox).click(function() { submitCurrentReview(); });
-$(".rebase-submit-button", $rbBox).click(function() { rebaseSubmitCurrentReview(); });
+$.template("infoBox", infoBox);
+
+var $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
 
 var greenColor = "#045900";
 var redColor = "#b30000";
 var greenBg = "#D4FAD5";
 var redBg = "#FFD9D9";
 
-function loadDiff(id) {
-  function callback(resp) {
-    console.log("Loaded rb", resp);
-    if (!resp.success) {
-      showNeedLogin();
-      rbId = rbAuth = null;
-      return;
+function extractReviewers(data) {
+  var reviewers = [];
+  var seen = {};
+  if (data.labels && data.labels["Code-Review"] && data.labels["Code-Review"].all) {
+    for (var i=0; i<data.labels["Code-Review"].all.length; i++) {
+      var rev = data.labels["Code-Review"].all[i];
+      if (!(rev.email in seen)) {
+        reviewers.push({
+          name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
+          self: rev.email == rbEmail, status: rev.value == 2 ? "approved" : "new"
+        });
+        seen[rev.email] = true;
+      }
     }
-    rbId = id;
-    var data = resp.data;
+  }
+  for (var i = 0; i < data.removable_reviewers.length; i++) {
+    var rev = data.removable_reviewers[i];
+    if (!(rev.email in seen)) {
+      reviewers.push({
+        name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
+        self: rev.email == rbEmail, status: "new"
+      });
+      seen[rev.email] = true;
+    }
+  }
+  return reviewers;
+}
 
+function createInfoBox(id, data) {
+  function renderBox(data) {
     var status = reviewStatus(data);
     console.log("STATUS", status);
-
-    var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
-    $sidebarBoxes.prepend($rbBox);
-    
-    $(".action-button", $rbBox).hide();
-
-    var $status = $(".status", $rbBox).text(status).css("color", "#555");
     var isOwner = rbEmail == data.owner.email;
     var isReviewer = false;
-    for (var i = 0; i < data.removable_reviewers.length; i++) {
-      if (rbEmail== data.removable_reviewers[i].email) {
+    var reviewers = extractReviewers(data);
+    for (var i = 0; i < reviewers.length; i++) {
+      if (rbEmail== reviewers[i].email) {
         isReviewer = true;
-        break;
       }
     }
+ 
+    var $info = $.tmpl("infoBox", {
+      diffId: id, status: status, gerritUrl: rbUrl, reviewers: reviewers
+    });
+
+    var $status = $(".status", $info);
+    $(".action-button", $info).hide();
     if (status == "Approved") {
-      $status.css("color", greenColor);
+      $status.addClass("green");
       if (isOwner) {
-        $(".submit-button", $rbBox).show();
+        $(".submit-button", $info).show();
       }
-    } else if (status == "Abandoned") {
-      $status.css("color", redColor);
     } else if (status == "Merged") {
-      $status.css("color", greenColor);
+      $status.addClass("green");
     } else if (status == "Merge Pending") {
       /* Rebase not supported yet
       if (isOwner) {
@@ -81,15 +104,66 @@ function loadDiff(id) {
       */
     } else {
       if (isReviewer || isOwner) {
-        $(".approve-button", $rbBox).show();
+        $(".approve-button", $info).show();
       }
       if (isOwner) {
-        $(".approve-submit-button", $rbBox).show();
+        $(".approve-submit-button", $info).show();
       } else if (isReviewer) {
-        $(".approve-comment-button", $rbBox).show();
+        $(".approve-comment-button", $info).show();
       }
     }
+    return $info;
+  }
 
+  var $box = renderBox(data);
+
+  function buttonCallback(resp) {
+    if (!resp.success) {
+      alert ("ERROR: " + resp.err_msg);
+    }
+    loadDiff(id, function(resp) {
+      if (!resp.success) {
+        return;
+      }
+      $box.html(renderBox(resp.data).html());
+    });
+  }
+  $(".gerrit-button", $box).click(function() {
+    var $this = $(this);
+    if ($this.hasClass("view-button")) {
+      viewDiff(id);
+    } else if ($this.hasClass("comment-button")) {
+      commentDiff(id, false, true);
+    } else if ($this.hasClass("approve-button")) {
+      commentDiff(id, true, false);
+    } else if ($this.hasClass("approve-comment-button")) {
+      commentDiff(id, true, true);
+    } else if ($this.hasClass("approve-submit-button")) {
+      approveSubmitDiff(id, true, true);
+    } else if ($this.hasClass("submit-button")) {
+      submitDiff(id);
+    } else if ($this.hasClass("rebase-submit-button")) {
+      rebaseSubmitDiff(id);
+    }
+  });
+  return $box;
+}
+
+function renderDiff(id) {
+  function callback(resp) {
+    console.log("Loaded rb", resp);
+    if (!resp.success) {
+      return;
+    }
+    rbId = id;
+    var data = resp.data;
+
+    $sideBox.empty();
+    $sideBox.append(createInfoBox(rbId, data));
+
+    var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
+    $sidebarBoxes.prepend($sideBox);
+    
     formatThread(data);
   }
 
@@ -105,6 +179,31 @@ function loadDiff(id) {
     });
   } else {
     chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
+  }
+}
+
+function loadDiff(id, callback) {
+  function loadCallback(resp) {
+    if (!resp.success) {
+      showNeedLogin();
+      rbId = rbAuth = null;
+      console.log("Cannot load diff");
+    } else {
+      callback(resp);
+    }
+  }
+  if (!rbAuth) {
+    console.log("rbAuth not initialized, re-initializing...");
+    initializeSettings(function() {
+      if (!rbAuth) {
+        console.log("No auth! fail :'(");
+        showNeedLogin();
+      } else {
+        chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, loadCallback);
+      }
+    });
+  } else {
+    chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, loadCallback);
   }
 }
 
@@ -347,7 +446,7 @@ function reviewStatus(reviewData) {
 
 function clearDiff() {
   rbId = null;
-  $rbBox.detach();
+  $sideBox.detach();
   hidePageAction();
 }
 
@@ -367,13 +466,11 @@ function loadSettings(callback) {
   chrome.runtime.sendMessage({type: "settings"}, callback);
 }
 
-function viewCurrentReview() {
-  if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "viewDiff", rbId: rbId});  
+function viewDiff(id) {
+  chrome.runtime.sendMessage({type: "viewDiff", rbId: id});  
 }
 
-function commentCurrentReview(approve, comment) {
-  if (!rbId) { return; }
+function commentDiff(id, approve, comment, callback) {
   var commentText = null;
   if (comment) {
     commentText = prompt("Say your piece.");
@@ -381,47 +478,19 @@ function commentCurrentReview(approve, comment) {
       return;
     }
   }
-  chrome.runtime.sendMessage({type: "commentDiff", rbId: rbId, approve: approve, comment: commentText}, function(resp) {
-    reloadReview(); 
-    if (!resp.success) { 
-      alert("ERROR: " + resp.err_msg);
-    }
-  });
+  chrome.runtime.sendMessage({type: "commentDiff", rbId: id, approve: approve, comment: commentText}, callback);
 }
 
-function approveSubmitCurrentReview() {
-  if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: rbId}, function(resp) {
-    reloadReview(); 
-    if (!resp.success) { 
-      alert("ERROR: " + resp.err_msg);
-    }
-  });
+function approveSubmitDiff(id, callback) {
+  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: id}, callback);
 }
 
-function submitCurrentReview() {
-  if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "submitDiff", rbId: rbId}, function(resp) {
-    if (!resp.success) { 
-      alert("ERROR! " + resp.err_msg);
-    }
-    reloadReview();
-  });
+function submitDiff(id, callback) {
+  chrome.runtime.sendMessage({type: "submitDiff", rbId: id}, callback);
 }
 
-function rebaseSubmitCurrentReview() {
-  if (!rbId) { return; }
-  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: rbId}, function(resp) {
-    reloadReview(); 
-    if (!resp.success) { 
-      alert("ERROR: " + resp.err_msg);
-    }
-  });
-}
-
-function reloadReview() {
-  if (!rbId) { return; }
-  loadDiff(rbId);
+function rebaseSubmitDiff(id, callback) {
+  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: id}, callback);
 }
 
 function initializeSettings(callback) {
@@ -482,7 +551,7 @@ function checkDiff() {
   if (id != rbId) {
     clearDiff();
     if (id) {
-      loadDiff(id);
+      renderDiff(id);
     }
   }
 }
