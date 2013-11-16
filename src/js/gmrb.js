@@ -3,21 +3,22 @@ var rbUrl = null;
 var rbEmail = null;
 var rbAuth = false;
 var re_rgid = new RegExp(".*/(\\d+)$");
+
 var $rbBox = $(
-  "<div class='nH gerrit-box' style='margin-bottom:10px;padding:10px 0;border-bottom:1px solid #d8d8d8;'>" +
-    "<h4 style='margin: 10px 0'>Gerrit: <span class='status'></span></h4>" + 
+  "<div class='nH gerrit-box gerrit-sidebox'>" +
+    "<h4>Gerrit: <span class='status'></span></h4>" + 
     "<div>" +
-      "<span class='view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>View</span>" +
-      "<span class='comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Comment</span>" +
+      "<span class='gerrit-button view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>View</span>" +
+      "<span class='gerrit-button comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Comment</span>" +
     "</div>" +
     "<div>" +
-      "<span class='action-button approve-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO' style='margin-bottom: 10px'>Approve</span>" +
-      "<span class='action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; comment</span>" +
-      "<span class='action-button approve-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO' style='margin-bottom: 10px'>&amp; submit</span>" +
+      "<span class='gerrit-button action-button approve-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Approve</span>" +
+      "<span class='gerrit-button action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; comment</span>" +
+      "<span class='gerrit-button action-button approve-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; submit</span>" +
     "</div>" +
     "<div>" +
-      "<span class='action-button submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Submit</span>" +
-      "<span class='action-button rebase-submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO' style='margin-bottom: 10px'>Rebase &amp; submit</span>" +
+      "<span class='gerrit-button action-button submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Submit</span>" +
+      "<span class='gerrit-button action-button rebase-submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Rebase &amp; submit</span>" +
     "</div>" +
   "</div>"
 );
