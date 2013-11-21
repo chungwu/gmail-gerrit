@@ -209,7 +209,7 @@ function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
       if (success) {
         _ajax();
       } else {
-        error();
+        error({responseText: 'Cannot reach Gerrit'});
       }
     });
   }
@@ -306,7 +306,6 @@ function rbUrl() {
 function loadSettings(callback) {
   initializeAuth(function(success) {
     if (success) {
-      console.log("Success loading settings; calling callback...", callback);
       callback({success: true, data: {user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL}});
     } else {
       callback({success: false, data: {url: rbUrl(), auth: false}});

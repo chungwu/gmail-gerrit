@@ -22,7 +22,7 @@ var infoBox = (
       "<span class='gerrit-button comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Comment</span>" +
     "</div>" +
     "<div>" +
-      "<span class='gerrit-button action-button approve-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Approve</span>" +
+      "<span class='gerrit-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Approve</span>" +
       "<span class='gerrit-button action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; comment</span>" +
       "<span class='gerrit-button action-button approve-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; submit</span>" +
     "</div>" +
@@ -70,83 +70,87 @@ function extractReviewers(data) {
   return reviewers;
 }
 
-function createInfoBox(id, data) {
-  function renderBox(data) {
-    var status = reviewStatus(data);
-    console.log("STATUS", status);
-    var isOwner = rbEmail == data.owner.email;
-    var isReviewer = false;
-    var reviewers = extractReviewers(data);
-    for (var i = 0; i < reviewers.length; i++) {
-      if (rbEmail== reviewers[i].email) {
-        isReviewer = true;
-      }
-    }
- 
-    var $info = $.tmpl("infoBox", {
-      diffId: id, status: status, gerritUrl: rbUrl, reviewers: reviewers
-    });
 
-    var $status = $(".status", $info);
-    $(".action-button", $info).hide();
-    if (status == "Approved") {
-      $status.addClass("green");
-      if (isOwner) {
-        $(".submit-button", $info).show();
-      }
-    } else if (status == "Merged") {
-      $status.addClass("green");
-    } else if (status == "Merge Pending") {
-      /* Rebase not supported yet
-      if (isOwner) {
-        $(".rebase-submit-button").show();
-      }
-      */
-    } else {
-      if (isReviewer || isOwner) {
-        $(".approve-button", $info).show();
-      }
-      if (isOwner) {
-        $(".approve-submit-button", $info).show();
-      } else if (isReviewer) {
-        $(".approve-comment-button", $info).show();
-      }
-    }
-    return $info;
+function performActionCallback(id, resp) {
+  if (!resp.success) {
+    alert ("ERROR: " + resp.err_msg);
   }
-
-  var $box = renderBox(data);
-
-  function buttonCallback(resp) {
+  loadDiff(id, function(resp) {
     if (!resp.success) {
-      alert ("ERROR: " + resp.err_msg);
+      return;
     }
-    loadDiff(id, function(resp) {
-      if (!resp.success) {
-        return;
-      }
-      $box.html(renderBox(resp.data).html());
-    });
+    renderBox(id, resp.data);
+  });
+}
+
+function renderBox(id, data) {
+  $sideBox.empty();
+
+  var status = reviewStatus(data);
+  console.log("STATUS", status);
+  var isOwner = rbEmail == data.owner.email;
+  var isReviewer = false;
+  var reviewers = extractReviewers(data);
+  for (var i = 0; i < reviewers.length; i++) {
+    if (rbEmail== reviewers[i].email) {
+      isReviewer = true;
+    }
   }
-  $(".gerrit-button", $box).click(function() {
+
+  var $info = $.tmpl("infoBox", {
+    diffId: id, status: status, gerritUrl: rbUrl, reviewers: reviewers
+  });
+
+  var $status = $(".status", $info);
+  $(".action-button", $info).hide();
+  if (status == "Approved") {
+    $status.addClass("green");
+    if (isOwner) {
+      $(".submit-button", $info).show();
+    }
+  } else if (status == "Merged") {
+    $status.addClass("green");
+  } else if (status == "Merge Pending") {
+    /* Rebase not supported yet
+    if (isOwner) {
+      $(".rebase-submit-button").show();
+    }
+    */
+  } else {
+    if (isReviewer || isOwner) {
+      $(".approve-button", $info).show();
+    }
+    if (isOwner) {
+      $(".approve-submit-button", $info).show();
+    } else if (isReviewer) {
+      $(".approve-comment-button", $info).show();
+    }
+  }
+
+  function actionButtonCallback(resp) {
+    performActionCallback(id, resp);
+  }
+
+  $(".gerrit-button", $info).click(function() {
     var $this = $(this);
     if ($this.hasClass("view-button")) {
       viewDiff(id);
     } else if ($this.hasClass("comment-button")) {
-      commentDiff(id, false, true);
+      commentDiff(id, false, true, actionButtonCallback);
     } else if ($this.hasClass("approve-button")) {
-      commentDiff(id, true, false);
+      commentDiff(id, true, false, actionButtonCallback);
     } else if ($this.hasClass("approve-comment-button")) {
-      commentDiff(id, true, true);
+      commentDiff(id, true, true, actionButtonCallback);
     } else if ($this.hasClass("approve-submit-button")) {
-      approveSubmitDiff(id, true, true);
+      approveSubmitDiff(id, actionButtonCallback);
     } else if ($this.hasClass("submit-button")) {
-      submitDiff(id);
+      submitDiff(id, actionButtonCallback);
     } else if ($this.hasClass("rebase-submit-button")) {
-      rebaseSubmitDiff(id);
+      rebaseSubmitDiff(id, actionButtonCallback);
     }
-  });
-  return $box;
+  });  
+
+  $sideBox.append($info);
 }
 
 function renderDiff(id) {
@@ -158,9 +162,7 @@ function renderDiff(id) {
     rbId = id;
     var data = resp.data;
 
-    $sideBox.empty();
-    $sideBox.append(createInfoBox(rbId, data));
-
+    renderBox(id, data);
     var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
     $sidebarBoxes.prepend($sideBox);
     
@@ -226,19 +228,23 @@ function formatThread(reviewData) {
 function formatCard($card, reviewData) {
   var $msg = $($(".ii div", $card)[0]);
   var text = $msg.text();
+  var html = $msg.html();
+
   if (!$.trim(text)) {
     return;
   }
 
-  if (text.indexOf("Gerrit-MessageType: newchange") >= 0) {
+  if (html.indexOf("gmail_quote") >= 0) {
+    // Don't format; someone replied to the thread directly
+  } else if (/^Gerrit-MessageType: newchange/gm.test(text)) {
     formatNewChange($msg, text, reviewData);
-  } else if (text.indexOf("Gerrit-MessageType: comment") >= 0) {
+  } else if (/^Gerrit-MessageType: comment/gm.test(text)) {
     formatComment($msg, text, reviewData);
-  } else if (text.indexOf("Gerrit-MessageType: merged") >= 0) {
+  } else if (/^Gerrit-MessageType: merged/gm.test(text)) {
     formatMerged($msg, text, reviewData);
-  } else if (text.indexOf("Gerrit-MessageType: merge-failed") >= 0) {
+  } else if (/^Gerrit-MessageType: merge-failed/gm.test(text)) {
     formatMergeFailed($msg, text, reviewData);
-  } else if (text.indexOf("Gerrit-MessageType: newpatchset") >= 0) {
+  } else if (/^Gerrit-MessageType: newpatchset/gm.test(text)) {
     formatNewPatch($msg, text, reviewData);
   }
   $card.addClass("gerrit-formatted");
@@ -561,10 +567,12 @@ function handleKeyPress(e) {
   if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input") {
     return;
   }
-  if (e.which == 119) {
-    viewCurrentReview();
-  } else if (e.which == 87) {
-    commentCurrentReview(true, false);
+  if (rbId) {
+    if (e.which == 119) {
+      viewDiff(rbId);
+    } else if (e.which == 87) {
+      commentDiff(rbId, true, false, function(resp) { performActionCallback(rbId, resp); });
+    }
   }
 }
 
