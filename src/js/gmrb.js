@@ -94,6 +94,9 @@ function renderError(id, err_msg) {
   var $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: gSettings.url}).appendTo($sideBox);
   $(".status", $header).addClass("red");
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
+  if (!gSettings.auth) {
+    $("<a href='" + gSettings.url + "' class='gerrit-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Login</span>").appendTo($sideBox);
+  }
 }
 
 function renderBox(id, data) {
@@ -192,7 +195,7 @@ function renderDiff(id) {
 
 function authenticatedSend(msg, callback) {
   function authenticatingCallback(resp) {
-    if (!resp.success && resp.err_msg == "Cannot authenticate") {
+    if (!resp.success && resp.status == 401) {
       showNeedLogin();
       gSettings.auth = false;
     }

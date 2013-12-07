@@ -28,6 +28,10 @@
   margin-bottom: 10px;
 }
 
+.gerrit-box a.gerrit-button {
+  text-decoration: none;
+}
+
 .gerrit-box .status {
   color: #555;
 }

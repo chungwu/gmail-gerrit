@@ -38,13 +38,6 @@ function hidePageAction(tabId) {
 function commentDiff(rbId, approve, comment, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/review';
-  function onSuccess(data, textStatus, xhr) {
-    callback({success: true});
-  }
-  function onError(xhr, textStatus, errorThrown) {
-    console.log("XHR", xhr);
-    callback({success: false, err_msg: xhr.responseText});
-  }
   var request = {};
   if (approve) {
     request.labels = {"Code-Review": 2}
@@ -52,21 +45,14 @@ function commentDiff(rbId, approve, comment, callback) {
   if (comment) {
     request.message = comment;
   }
-  ajax(url, onSuccess, onError, 'POST', request);
+  ajax(url, callback, 'POST', request);
   return true;
 }
 
 function submitDiff(rbId, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + rbId + '/revisions/current/submit';
-  function onSuccess(data, textStatus, xhr) {
-    callback({success: true});
-  }
-  function onError(xhr, textStatus, errorThrown) {
-    console.log("XHR", xhr);
-    callback({success: false, err_msg: xhr.responseText});
-  }
-  ajax(url, onSuccess, onError, 'POST', {wait_for_merge: true});
+  ajax(url, callback, 'POST', {wait_for_merge: true});
   return true;
 }
 
@@ -77,32 +63,6 @@ function approveSubmitDiff(rbId, callback) {
       submitDiff(rbId, callback);
     } else {
       callback(resp);
-    }
-  });
-  return true;
-}
-
-function rebaseSubmitDiff(rbId, callback) {
-  loadDiff(rbId, function(resp) {
-    if (!resp.success) { 
-      callback(resp);
-    } else {
-      var data = resp.data;
-      console.log("Loaded", data);
-      console.log("Patch set", data.revisions[data.current_revision]._number);
-      function onSuccess() {
-        approveSubmitDiff(rbId, callback);
-      }
-      function onError() {
-        callback({success: false, err_msg: xhr.responseText});
-      }
-      //ajax('/changes/' + rbId + '/rebase', onSuccess, onError, 'POST');
-      var url = '/gerrit_ui/rpc/ChangeManageService';
-      ajax(url, onSuccess, onError, 'POST', {
-        jsonrpc: "2.0", method: "rebaseChange", 
-        params: [{changeId:{id:data._number}, patchSetId:data.revisions[data.current_revision]._number}],
-        id: 2, xsrfKey: _GERRIT_AUTH
-      });
     }
   });
   return true;
@@ -139,85 +99,66 @@ function initializeAuth(callback) {
 
 function loadDiff(rbId, callback) {
   console.log("Fetching review status for", rbId);
-
-  var onSuccess = function(data, textStatus, xhr) {
-    console.log("SUCCESS!", data);
-    callback({success: true, data: data});
-  };
-  var onError = function(xhr, textStatus, errorThrown) {
-    console.log("ERROR:", xhr);
-    callback({success: false, err_msg: xhr.responseText});
-  };
-
   //var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED'];
   //ajax("/changes/" + rbId + "/detail", onSuccess, onError, 'GET', {o: options}, {traditional: true});
-  ajax("/changes/" + rbId + "/revisions/current/review", onSuccess, onError);
+  ajax("/changes/" + rbId + "/revisions/current/review", callback);
 
   return true;
 }
 
-function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
-  function _ajax() {
-    var settings = {
-      dataType: "json",
-      dataFilter: function(data) { return data.substring(4); },
-    };
-    if (opt_opts) {
-      $.extend(settings, opt_opts);
-    }
-  
-    settings.type = opt_type || 'GET';
-    settings.headers = settings.headers || {};
-    settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTH;
-  
-    if (opt_data) {
-      if (settings.type == 'GET') {
-        settings.data = opt_data;
-      } else {
-        settings.data = JSON.stringify(opt_data);
-        settings.contentType = 'application/json';
-      }
-    }
-  
-    var auth = {step: 0};
-    function onSuccess(data, textStatus, xhr) {
-      success(data, textStatus, xhr);
-    }
-    function onError(xhr, textStatus, errorThrown) {
-      window.xhr = xhr;
-      _GERRIT_AUTH = undefined;
-      if (auth.step == 1 || xhr.status != 401) {
-        console.log("real error!");
-        error(xhr, textStatus, errorThrown);
-        return;
-      }
-  
-      // status is 401
-      console.log("Attempting digest auth...");
-      auth.step = 1;
-      var challenge = xhr.getResponseHeader('WWW-Authenticate');
-      var response = _buildChallengeResponse(uri, settings.type, challenge);
-      settings.headers = settings.headers || {}
-      settings.headers['Authorization'] = response;
-      $.ajax(gerritUrl() + uri, settings);
-    }
-  
-    settings.success = onSuccess;
-    settings.error = onError;
-    $.ajax(gerritUrl() + uri, settings);
+function ajax(uri, callback, opt_type, opt_data, opt_opts) {
+  var settings = {
+    dataType: "json",
+    dataFilter: function(data) { return data.substring(4); },
+  };
+  if (opt_opts) {
+    $.extend(settings, opt_opts);
   }
 
-  if (_GERRIT_AUTH) {
-    _ajax();
-  } else {
-    initializeAuth(function(resp) {
-      if (resp.success) {
-        _ajax();
-      } else {
-        error({responseText: 'Cannot reach Gerrit'});
-      }
-    });
+  settings.type = opt_type || 'GET';
+  settings.headers = settings.headers || {};
+  settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTH;
+
+  if (opt_data) {
+    if (settings.type == 'GET') {
+      settings.data = opt_data;
+    } else {
+      settings.data = JSON.stringify(opt_data);
+      settings.contentType = 'application/json';
+    }
   }
+
+  function onSuccess(data, textStatus, xhr) {
+    callback({success: true, status: xhr.status, data: data});
+  }
+
+  // NORMAL error
+  function onError(xhr, textStatus, errorThrown) {
+    callback({success: false, status: xhr.status, err_msg: xhr.responseText});
+  }
+
+  // DIGEST error
+  // var auth = {step: 0};
+  // function onError(xhr, textStatus, errorThrown) {
+  //   if (auth.step == 1 || xhr.status != 401) {
+  //     console.log("real error!");
+  //     callback({success: false, status: xhr.status, err_msg: xhr.responseText});
+  //     return;
+  //   }
+
+  //   // status is 401
+  //   console.log("Attempting digest auth...");
+  //   auth.step = 1;
+  //   var challenge = xhr.getResponseHeader('WWW-Authenticate');
+  //   var response = _buildChallengeResponse(uri, settings.type, challenge);
+  //   settings.headers = settings.headers || {}
+  //   settings.headers['Authorization'] = response;
+  //   $.ajax(gerritUrl() + "/a" + uri, settings);
+  // }
+
+  settings.success = onSuccess;
+  settings.error = onError;
+  $.ajax(gerritUrl() + "/a" + uri, settings);
 }
 
 var xhr;
@@ -327,7 +268,7 @@ function authenticate(callback) {
 }
 
 function loadSettings(callback) {
-  callback({url: gerritUrl(), gmail: gerritGmail()});
+  callback({url: gerritUrl(), gmail: gerritGmail(), user: user(), hasPassword: password() != ''});
 }
 
 function getPopup() {

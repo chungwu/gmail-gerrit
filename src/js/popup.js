@@ -5,7 +5,7 @@ function initialize() {
   $(".action-setup").click(setup);
   var bg = chrome.extension.getBackgroundPage();
   $(".actions").hide();
-  if (!bg.rbUrl()) {
+  if (!bg.gerritUrl()) {
     $(".actions.unsetup").show();
   } else {
     $(".actions.unauthorized").show();

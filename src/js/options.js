@@ -7,9 +7,20 @@ function save() {
   if (!gmail) {
     return false;
   }
+  // var user = $("#user").val();
+  // var password = $("#password").val();
+  // if (!user || !password) {
+  //   alert("You must enter your authentication info");
+  //   return false;
+  // }
+
   localStorage['host'] = url;
   localStorage['gmail'] = gmail;
-  alert("Saved! You should reload your Gmail tabs to reflect the changes.");
+  
+  // localStorage['user'] = user;
+  // localStorage['password'] = password;
+
+  Alert("Saved! You should reload your Gmail tabs to reflect the changes.");
   return true;
 }
 
@@ -35,6 +46,8 @@ function _validateUrl(url) {
 
 function load() {
   $("#url").val(localStorage['host']);
+  //$("#user").val(localStorage['user']);
+  //$("#password").val(localStorage['password']);
   $("#gmail").val(localStorage['gmail']);
 }
 
