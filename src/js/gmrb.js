@@ -4,9 +4,14 @@ var rbEmail = null;
 var rbAuth = false;
 var re_rgid = new RegExp(".*/(\\d+)$");
 
+var infoBoxHeader = (
+  "<h4><img title='Gerrit' src='${chrome.extension.getURL(\"icons/gerrit-big.png\")}'> <a href='${gerritUrl}/${diffId}' target='_blank'>${diffId}</a>: <span class='status'>${status}</span></h4>"
+);
+
+$.template("infoBoxHeader", infoBoxHeader);
+
 var infoBox = (
   "<div>" +
-    "<h4><img title='Gerrit' src='${chrome.extension.getURL(\"icons/gerrit-big.png\")}'> <a href='${gerritUrl}/${diffId}' target='_blank'>${diffId}</a>: <span class='status'>${status}</span></h4>" + 
     "<div class='note reviewers'>" +
       "<span class='note-title'>Reviewers: </span>" +
       "{%if !reviewers || reviewers.length == 0%}" +
@@ -73,14 +78,23 @@ function extractReviewers(data) {
 
 function performActionCallback(id, resp) {
   if (!resp.success) {
+    renderError(id, resp.err_msg);
     alert ("ERROR: " + resp.err_msg);
   }
   loadDiff(id, function(resp) {
     if (!resp.success) {
+      renderError(id, resp.err_msg);
       return;
     }
     renderBox(id, resp.data);
   });
+}
+
+function renderError(id, err_msg) {
+  $sideBox.empty();
+  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: rbUrl}).appendTo($sideBox);
+  $(".status", $header).addClass("red");
+  $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
 }
 
 function renderBox(id, data) {
@@ -97,11 +111,13 @@ function renderBox(id, data) {
     }
   }
 
+  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: rbUrl});
+
   var $info = $.tmpl("infoBox", {
-    diffId: id, status: status, gerritUrl: rbUrl, reviewers: reviewers
+    diffId: id, reviewers: reviewers
   });
 
-  var $status = $(".status", $info);
+  var $status = $(".status", $header);
   $(".action-button", $info).hide();
   if (status == "Approved") {
     $status.addClass("green");
@@ -150,21 +166,24 @@ function renderBox(id, data) {
     }
   });  
 
+  $sideBox.append($header);
   $sideBox.append($info);
 }
 
 function renderDiff(id) {
+  var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
+  $sideBox.empty().prependTo($sidebarBoxes);
+
   function callback(resp) {
     console.log("Loaded rb", resp);
     if (!resp.success) {
+      renderError(id, resp.err_msg);
       return;
     }
     rbId = id;
     var data = resp.data;
 
     renderBox(id, data);
-    var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
-    $sidebarBoxes.prepend($sideBox);
     
     formatThread(data);
   }
@@ -175,6 +194,7 @@ function renderDiff(id) {
       if (!rbAuth) {
         console.log("No auth! fail :'(");
         showNeedLogin();
+        renderError(id, "Cannot authenticate with Gerrit");
       } else {
         chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
       }
@@ -222,7 +242,11 @@ function formatThread(reviewData) {
     setTimeout(doFormat, 1000);
   }
   doFormat();
-  $($(".show-diffs-button", $thread)[0]).click();
+
+  if (rbEmail != reviewData.owner.email) {
+    // Not my commit, so show me the diff (but just once)
+    $($(".show-diffs-button", $thread)[0]).click();
+  }
 }
 
 function formatCard($card, reviewData) {
@@ -501,9 +525,6 @@ function rebaseSubmitDiff(id, callback) {
 
 function initializeSettings(callback) {
   loadSettings(function(resp) { 
-    if (!resp.success) {
-      alert("Unable to load Gerrit settings or connect to Gerrit. Check what's wrong and refresh.");
-    }
     var settings = resp.data;
     console.log("SETTINGS", settings);
     rbUrl = settings.url; 

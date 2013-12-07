@@ -38,6 +38,10 @@
   margin: 10px 0;
 }
 
+.gerrit-box .note.error {
+  color: #b30000;
+}
+
 .gerrit-box .note a {
   text-decoration: none;
   color: #888;
