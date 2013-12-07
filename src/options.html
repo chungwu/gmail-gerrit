@@ -3,6 +3,8 @@
 <style type="text/css">
 html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 12px;}
 a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
+.form-row { margin: 10px 0; }
+.form-note { font-size: 10px; color: #888; }
 </style>
 <script type="text/javascript" src="js/jquery.js"></script>
 <script type="text/javascript" src="js/options.js"></script>
@@ -16,12 +18,18 @@ When you're viewing an email from Gerrit,
   <li>You can press 'w' to open the review diffs page.</li>
 </ul>
 </p>
-<p>
-For this to work, we need to first know where your Gerrit instance is hosted.  Please enter your Gerrit URL prefix below:
-</p>
 <form class="options-form">
-  <div>
-    Gerrit URL: <input id="url" style="width:400px"/>
+  <div class="form-row">
+    <div>
+      Gerrit URL: <input id="url" style="width:400px"/>
+    </div>
+    <div class="form-note">The URL where your Gerrit instance is hosted.</div>
+  </div>
+  <div class="form-row">
+    <div>
+      Enabled Gmail Account: <input id="gmail" style="width:400px"/>
+    </div>
+    <div class="form-note">The Gmail address that you want to enable the Gerrit plugin for.</div>
   </div>
   <div>
     <button action="submit">Save</button>

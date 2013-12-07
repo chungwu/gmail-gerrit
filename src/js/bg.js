@@ -1,4 +1,5 @@
 function contentHandler(request, sender, callback) {
+  console.log("REQUEST", request);
   if (request.type == "loadDiff") {
     return loadDiff(request.rbId, callback);
   } else if (request.type == "viewDiff") {
@@ -13,6 +14,8 @@ function contentHandler(request, sender, callback) {
     return approveSubmitDiff(request.rbId, callback);
   } else if (request.type == "settings") {
     return loadSettings(callback);
+  } else if (request.type == "authenticate") {
+    return authenticate(callback);
   } else if (request.type == "showSetup") {
     return showPageActionError(sender.tab.id);
   } else if (request.type == "showLogin") {
@@ -109,8 +112,6 @@ _RE_AUTH = /xGerritAuth="([^"]+)"/
 _RE_USER = /"userName":"([^"]+)"/
 _RE_EMAIL = /"preferredEmail":"([^"]+)"/
 _GERRIT_AUTH = undefined;
-_GERRIT_USER = undefined;
-_GERRIT_EMAIL = undefined;
 
 function _extractRe(re, text) {
   var match = re.exec(text);
@@ -120,16 +121,20 @@ function _extractRe(re, text) {
 function initializeAuth(callback) {
   function onSuccess(data, textStatus, xhr) {
     _GERRIT_AUTH = _extractRe(_RE_AUTH, data);
-    _GERRIT_USER = _extractRe(_RE_USER, data);
-    _GERRIT_EMAIL = _extractRe(_RE_EMAIL, data);
-    console.log("User: " + _GERRIT_USER + ", email: " + _GERRIT_EMAIL + ", auth: " + _GERRIT_AUTH);
-    callback(_GERRIT_AUTH && _GERRIT_USER && _GERRIT_EMAIL);
+    var user = _extractRe(_RE_USER, data);
+    var email = _extractRe(_RE_EMAIL, data);
+    console.log("User: " + user + ", email: " + email + ", auth: " + _GERRIT_AUTH);
+    if (_GERRIT_AUTH && user && email) {
+      callback({success: true, user: user, email: email});
+    } else {
+      callback({success: false, err_msg: "Cannot authenticate"});
+    }
   }
   function onError(xhr, textStatus, errorThrown) {
     window.xhr = xhr;
-    callback(false);
+    callback({success: false, err_msg: "Cannot authenticate"});
   }
-  $.ajax(rbUrl(), {success: onSuccess, error: onError, timeout: 1000});
+  $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 1000});
 }
 
 function loadDiff(rbId, callback) {
@@ -194,19 +199,19 @@ function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
       var response = _buildChallengeResponse(uri, settings.type, challenge);
       settings.headers = settings.headers || {}
       settings.headers['Authorization'] = response;
-      $.ajax(rbUrl() + uri, settings);
+      $.ajax(gerritUrl() + uri, settings);
     }
   
     settings.success = onSuccess;
     settings.error = onError;
-    $.ajax(rbUrl() + uri, settings);
+    $.ajax(gerritUrl() + uri, settings);
   }
 
   if (_GERRIT_AUTH) {
     _ajax();
   } else {
-    initializeAuth(function(success) {
-      if (success) {
+    initializeAuth(function(resp) {
+      if (resp.success) {
         _ajax();
       } else {
         error({responseText: 'Cannot reach Gerrit'});
@@ -214,6 +219,7 @@ function ajax(uri, success, error, opt_type, opt_data, opt_opts) {
     });
   }
 }
+
 var xhr;
 _RE_NONCE = /nonce="([^"]+)"/
 function _buildChallengeResponse(uri, method, challenge) {
@@ -288,30 +294,40 @@ function _extractReviewers($page) {
 }
 
 function showDiffs(rbId) {
-  chrome.tabs.create({url:rbUrl() + "/" + rbId});
+  chrome.tabs.create({url:gerritUrl() + "/" + rbId});
 }
 
 function login() {
-  chrome.tabs.create({url:rbUrl()});
+  chrome.tabs.create({url:gerritUrl()});
 }
 
 function setup() {
   chrome.tabs.create({url:"options.html"});
 }
 
-function rbUrl() {
+function gerritUrl() {
   return localStorage['host'];
 }
 
-function loadSettings(callback) {
-  initializeAuth(function(success) {
-    if (success) {
-      callback({success: true, data: {user: _GERRIT_USER, url: rbUrl(), auth: true, email: _GERRIT_EMAIL}});
-    } else {
-      callback({success: false, data: {url: rbUrl(), auth: false}});
-    }
-  });
+function gerritGmail() {
+  return localStorage['gmail'];
+}
+
+function user() {
+  return localStorage['user'];
+}
+
+function password() {
+  return localStorage['password'];
+}
+
+function authenticate(callback) {
+  initializeAuth(callback);
   return true;
+}
+
+function loadSettings(callback) {
+  callback({url: gerritUrl(), gmail: gerritGmail()});
 }
 
 function getPopup() {

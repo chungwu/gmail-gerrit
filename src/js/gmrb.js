@@ -1,7 +1,6 @@
+var gSettings = {};
+
 var rbId = null;
-var rbUrl = null;
-var rbEmail = null;
-var rbAuth = false;
 var re_rgid = new RegExp(".*/(\\d+)$");
 
 var infoBoxHeader = (
@@ -56,7 +55,7 @@ function extractReviewers(data) {
       if (!(rev.email in seen)) {
         reviewers.push({
           name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
-          self: rev.email == rbEmail, status: rev.value == 2 ? "approved" : "new"
+          self: rev.email == gSettings.email, status: rev.value == 2 ? "approved" : "new"
         });
         seen[rev.email] = true;
       }
@@ -67,7 +66,7 @@ function extractReviewers(data) {
     if (!(rev.email in seen)) {
       reviewers.push({
         name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
-        self: rev.email == rbEmail, status: "new"
+        self: rev.email == gSettings.email, status: "new"
       });
       seen[rev.email] = true;
     }
@@ -92,7 +91,7 @@ function performActionCallback(id, resp) {
 
 function renderError(id, err_msg) {
   $sideBox.empty();
-  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: rbUrl}).appendTo($sideBox);
+  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: gSettings.url}).appendTo($sideBox);
   $(".status", $header).addClass("red");
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
 }
@@ -102,16 +101,16 @@ function renderBox(id, data) {
 
   var status = reviewStatus(data);
   console.log("STATUS", status);
-  var isOwner = rbEmail == data.owner.email;
+  var isOwner = gSettings.email == data.owner.email;
   var isReviewer = false;
   var reviewers = extractReviewers(data);
   for (var i = 0; i < reviewers.length; i++) {
-    if (rbEmail== reviewers[i].email) {
+    if (gSettings.email == reviewers[i].email) {
       isReviewer = true;
     }
   }
 
-  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: rbUrl});
+  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: gSettings.url});
 
   var $info = $.tmpl("infoBox", {
     diffId: id, reviewers: reviewers
@@ -188,45 +187,35 @@ function renderDiff(id) {
     formatThread(data);
   }
 
-  if (!rbAuth) {
-    console.log("rbAuth not initialized, re-initializing...");
-    initializeSettings(function() {
-      if (!rbAuth) {
-        console.log("No auth! fail :'(");
-        showNeedLogin();
-        renderError(id, "Cannot authenticate with Gerrit");
+  authenticatedSend({type: "loadDiff", rbId: id}, callback);
+}
+
+function authenticatedSend(msg, callback) {
+  function authenticatingCallback(resp) {
+    if (!resp.success && resp.err_msg == "Cannot authenticate") {
+      showNeedLogin();
+      gSettings.auth = false;
+    }
+    callback(resp);
+  }
+  if (!gSettings.auth) {
+    console.log("Not authenticated yet, trying to authenticate...");
+    authenticate(function(resp) {
+      if (resp.success) {
+        chrome.runtime.sendMessage(msg, authenticatingCallback);
       } else {
-        chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
+        console.log("Still failed to authenticate :'(");
+        showNeedLogin();
+        authenticatingCallback({success: false, err_msg: "Cannot authenticate"});
       }
     });
   } else {
-    chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, callback);
+    chrome.runtime.sendMessage(msg, authenticatingCallback);
   }
 }
 
 function loadDiff(id, callback) {
-  function loadCallback(resp) {
-    if (!resp.success) {
-      showNeedLogin();
-      rbId = rbAuth = null;
-      console.log("Cannot load diff");
-    } else {
-      callback(resp);
-    }
-  }
-  if (!rbAuth) {
-    console.log("rbAuth not initialized, re-initializing...");
-    initializeSettings(function() {
-      if (!rbAuth) {
-        console.log("No auth! fail :'(");
-        showNeedLogin();
-      } else {
-        chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, loadCallback);
-      }
-    });
-  } else {
-    chrome.runtime.sendMessage({type: "loadDiff", rbId: id}, loadCallback);
-  }
+  authenticatedSend({type: "loadDiff", rbId: id}, callback);
 }
 
 function formatThread(reviewData) {
@@ -243,7 +232,7 @@ function formatThread(reviewData) {
   }
   doFormat();
 
-  if (rbEmail != reviewData.owner.email) {
+  if (gSettings.email != reviewData.owner.email) {
     // Not my commit, so show me the diff (but just once)
     $($(".show-diffs-button", $thread)[0]).click();
   }
@@ -496,6 +485,21 @@ function loadSettings(callback) {
   chrome.runtime.sendMessage({type: "settings"}, callback);
 }
 
+function authenticate(callback) {
+  chrome.runtime.sendMessage({type: "authenticate"}, function(resp) {
+    if (resp.success) {
+      gSettings.auth = true;
+      gSettings.email = resp.email;
+      gSettings.user = resp.user;
+    } else {
+      gSettings.auth = false;
+      gSettings.email = undefined;
+      gSettings.user = undefined;
+    }
+    callback(resp);
+  });
+}
+
 function viewDiff(id) {
   chrome.runtime.sendMessage({type: "viewDiff", rbId: id});  
 }
@@ -523,26 +527,23 @@ function rebaseSubmitDiff(id, callback) {
   chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: id}, callback);
 }
 
-function initializeSettings(callback) {
-  loadSettings(function(resp) { 
-    var settings = resp.data;
-    console.log("SETTINGS", settings);
-    rbUrl = settings.url; 
-    rbEmail = settings.email;
-    rbAuth = settings.auth;
-    callback(settings);
-  });
-}
-
 function initialize() {
-  initializeSettings(function(settings) { 
-    if (!rbUrl) {
-      showNeedSetup();
+  loadSettings(function(settings) {
+    gSettings.url = settings.url;
+
+    if (!gSettings.url) {
+      // No URL set; forget it
       return;
     }
-    if (!rbAuth) {
-      showNeedLogin();
+
+    if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
+      // Email is set and is not the current gmail account; forget it
+      console.log("Expecting gmail " + settings.gmail + " but not found; nevermind!");
+      return;
     }
+
+    console.log("Running Gerrit plugin!");
+
     $(window).hashchange(function() {
       setTimeout(checkDiff, 100);
     });
@@ -550,6 +551,15 @@ function initialize() {
       $("body").keypress(handleKeyPress);
       checkDiff();
     }, 3000);
+
+    authenticate(function(resp) {
+      if (resp.success) {
+        console.log("Authenticated!");
+      } else {
+        console.log("Not authenticated!");
+        showNeedLogin();
+      }
+    });
   });
 }
 
@@ -563,7 +573,7 @@ function extractDiffIdFromUrl(url) {
 
 function extractDiffId() {
   var $thread = $("div[role='main']");
-  var $anchor = $("a[href*='" + rbUrl + "']", $thread);
+  var $anchor = $("a[href*='" + gSettings.url + "']", $thread);
   if ($anchor.length > 0) {
     var url = $anchor.attr("href");
     return extractDiffIdFromUrl(url);
@@ -597,4 +607,6 @@ function handleKeyPress(e) {
   }
 }
 
-$(initialize);
+$(function() {
+  setTimeout(initialize, 3000);
+});

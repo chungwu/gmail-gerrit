@@ -3,9 +3,22 @@ function save() {
   if (!url) { 
     return false; 
   }
+  var gmail = _validateEmail($("#gmail").val());
+  if (!gmail) {
+    return false;
+  }
   localStorage['host'] = url;
+  localStorage['gmail'] = gmail;
   alert("Saved! You should reload your Gmail tabs to reflect the changes.");
   return true;
+}
+
+function _validateEmail(email) {
+  if (email.indexOf("@") < 0) {
+    alert("Invalid email: " + email);
+    return false;
+  }
+  return email;
 }
 
 function _validateUrl(url) {
@@ -22,6 +35,7 @@ function _validateUrl(url) {
 
 function load() {
   $("#url").val(localStorage['host']);
+  $("#gmail").val(localStorage['gmail']);
 }
 
 function init() {
