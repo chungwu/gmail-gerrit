@@ -94,8 +94,9 @@
 }
 
 .gerrit-line {
-  padding: 3px 0;
+  padding: 0;
   margin: 0;
+  line-height: 1.3em;
   font-family: monospace;
 }
 
@@ -106,11 +107,21 @@
 }
 
 .gerrit-new-line {
-  background-color: #d4fad5;
+  background-color: #dfd;
 }
 
 .gerrit-old-line {
-  background-color: #ffd9d9;
+  background-color: #fee;
+}
+
+.gerrit-line-edit-part-old {
+  background-color: #faa;
+  display: inline-block;
+}
+
+.gerrit-line-edit-part-new {
+  background-color: #9f9;
+  display: inline-block;
 }
 
 .gerrit-highlight-box {

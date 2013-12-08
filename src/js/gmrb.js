@@ -407,15 +407,30 @@ function appendFileDiff($box, data) {
     return renderHeader("@@ -" + a + ", +" + b + " @@");
   }
 
-  function renderLine(text, type) {
-    var prefix = type == "new" ? "+" : type == "old" ? "-" : " ";
-    var $line = $("<pre class='gerrit-line'/>").text(prefix + text).appendTo($box);
+  function renderLine(texts, type) {
+    if (typeof(texts) == "string") {
+      texts = [texts];
+    }
+    var prefix = type == "new" ? "+ " : type == "old" ? "- " : "  ";
+    var $line = $("<pre class='gerrit-line'/>").text(prefix).appendTo($box);
     if (type == "new") {
       $line.addClass("gerrit-new-line");
     } else if (type == "old") {
       $line.addClass("gerrit-old-line");
-    } else if (text.length == 0) {
+    } else if (texts.length == 0 || (texts.length == 1 && texts[0].length == 0)) {
       $line.addClass("gerrit-line-empty");
+    }
+
+    for (var i = 0; i < texts.length; i++) {
+      var part = texts[i];
+      if (typeof(part) == "string") {
+        $line.append($("<span/>").text(part));
+      } else if (part[0].length > 0) {
+        var $part = $("<span/>").text(part[0]).appendTo($line);
+        if (part[1]) {
+          $part.addClass("gerrit-line-edit-part-" + type);
+        }
+      }
     }
 
     return $line;
@@ -471,13 +486,21 @@ function appendFileDiff($box, data) {
 
       if ("a" in section) {
         for (var i = 0; i < section.a.length; i++) {
-          $box.append(renderLine(section.a[i], "old"));
+          if ("edit_a" in section) {
+            $box.append(renderLine(segmentEdits(section.a, i, section.edit_a), "old"));
+          } else {
+            $box.append(renderLine([[section.a[i], true]], "old"));
+          }
         }
         aLine += section.a.length;
       }
       if ("b" in section) {
         for (var i = 0; i < section.b.length; i++) {
-          $box.append(renderLine(section.b[i], "new"));
+          if ("edit_b" in section) {
+            $box.append(renderLine(segmentEdits(section.b, i, section.edit_b), "new"));
+          } else {
+            $box.append(renderLine([[section.b[i], true]], "new"));
+          }
         }
         bLine += section.b.length;
       }
@@ -487,6 +510,49 @@ function appendFileDiff($box, data) {
     }
     curSection += 1
   }
+}
+
+function segmentEdits(lines, index, edits) {
+  var line = lines[index];
+  var lineIndex = 0;
+  var segmentIndex = 0;
+  for (var i = 0; i < index; i++) {
+    segmentIndex += lines[i].length + 1; // include the newline
+  }
+
+  var buffer = [];
+
+  var editStartIndex = 0;
+  for (var i = 0; i < edits.length; i++) {
+    var edit = edits[i];
+    editStartIndex += edit[0];
+    editEndIndex = editStartIndex + edit[1];
+    if (segmentIndex + lineIndex < editStartIndex) {
+      // Starting in the empty space before the next edit segment
+      var len = Math.min(line.length - lineIndex, editStartIndex - lineIndex - segmentIndex);
+      buffer.push([line.substring(lineIndex, lineIndex + len), false]);
+      lineIndex += len;
+    } 
+
+    if (segmentIndex + lineIndex >= editStartIndex && segmentIndex + lineIndex < editEndIndex) {
+      // Starting in the middle of an edit segment
+      var len = Math.min(line.length - lineIndex, editEndIndex - lineIndex - segmentIndex);
+      buffer.push([line.substring(lineIndex, lineIndex + len), true]);
+      lineIndex += len;
+    } 
+
+    if (lineIndex >= line.length) {
+      break;
+    }
+
+    editStartIndex = editEndIndex;
+  }
+
+  if (lineIndex < line.length) {
+    buffer.push([line.substring(lineIndex), false]);
+  }
+
+  return buffer;
 }
 
 function indexOf(array, func, opt_backward) {
