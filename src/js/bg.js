@@ -1,7 +1,11 @@
 function contentHandler(request, sender, callback) {
   console.log("REQUEST", request);
-  if (request.type == "loadDiff") {
-    return loadDiff(request.rbId, callback);
+  if (request.type == "loadChange") {
+    return loadChange(request.rbId, callback);
+  } else if (request.type == "loadFiles") {
+    return loadFiles(request.rbId, request.revisionId, callback);
+  } else if (request.type == "loadDiff") {
+    return loadDiff(request.rbId, request.revisionId, request.file, request.baseId, callback);
   } else if (request.type == "viewDiff") {
     return showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
@@ -97,12 +101,26 @@ function initializeAuth(callback) {
   $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 1000});
 }
 
-function loadDiff(rbId, callback) {
+function loadChange(rbId, callback) {
   console.log("Fetching review status for", rbId);
-  //var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED'];
-  //ajax("/changes/" + rbId + "/detail", onSuccess, onError, 'GET', {o: options}, {traditional: true});
-  ajax("/changes/" + rbId + "/revisions/current/review", callback);
+  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS'];
+  ajax("/changes/" + rbId + "/detail", callback, 'GET', {o: options}, {traditional: true});
+  //ajax("/changes/" + rbId + "/revisions/current/review", callback);
 
+  return true;
+}
+
+function loadDiff(changeId, revisionId, file, baseId, callback) {
+  var options = {intraline: true};
+  if (baseId) {
+    options.base = baseid;
+  }
+  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/" + encodeURIComponent(file) + "/diff", callback, 'GET', options);
+  return true;
+}
+
+function loadFiles(changeId, revisionId, callback) {
+  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/", callback);
   return true;
 }
 

@@ -80,7 +80,7 @@ function performActionCallback(id, resp) {
     renderError(id, resp.err_msg);
     alert ("ERROR: " + resp.err_msg);
   }
-  loadDiff(id, function(resp) {
+  loadChange(id, function(resp) {
     if (!resp.success) {
       renderError(id, resp.err_msg);
       return;
@@ -172,7 +172,7 @@ function renderBox(id, data) {
   $sideBox.append($info);
 }
 
-function renderDiff(id) {
+function renderChange(id) {
   var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
   $sideBox.empty().prependTo($sidebarBoxes);
 
@@ -190,7 +190,7 @@ function renderDiff(id) {
     formatThread(data);
   }
 
-  authenticatedSend({type: "loadDiff", rbId: id}, callback);
+  authenticatedSend({type: "loadChange", rbId: id}, callback);
 }
 
 function authenticatedSend(msg, callback) {
@@ -217,8 +217,16 @@ function authenticatedSend(msg, callback) {
   }
 }
 
-function loadDiff(id, callback) {
-  authenticatedSend({type: "loadDiff", rbId: id}, callback);
+function loadChange(id, callback) {
+  authenticatedSend({type: "loadChange", rbId: id}, callback);
+}
+
+function loadFiles(id, revisionId, callback) {
+  authenticatedSend({type: "loadFiles", rbId: id, revisionId: revisionId}, callback);
+}
+
+function loadDiff(id, revisionId, file, baseId, callback) {
+  authenticatedSend({type: "loadDiff", rbId: id, revisionId: revisionId, file: file, baseId: baseId}, callback);
 }
 
 function formatThread(reviewData) {
@@ -266,11 +274,189 @@ function formatCard($card, reviewData) {
   $card.addClass("gerrit-formatted");
 }
 
+function getRevisionIdByPatchNumber(reviewData, patchNumber) {
+  for (var k in reviewData['revisions']) {
+    if (reviewData['revisions'][k]._number == patchNumber) {
+      return k;
+    }
+  }
+  return undefined;
+}
+
 function formatNewChange($msg, text, reviewData) {
-  var lines = text.split("\n");
   $msg.empty();
-  var diffStart = indexOf(lines, function(l) { return l.indexOf(".....") == 0; })+1;
-  _appendDiffs($msg, lines.slice(diffStart));
+
+  var pid = extractPatchSet(text);
+  var revId = getRevisionIdByPatchNumber(reviewData, pid);
+
+  var $header = $("<div class='gerrit-highlight-box'/>").appendTo($msg);
+  var revision = reviewData.revisions[revId];
+  var message = extractCommitMessage(revision.commit);
+  $header.append($("<div class='gerrit-header'/>").text(revision.commit.subject));
+  if (message) {
+    $header.append($("<p/>").text(message));
+  }
+
+  $msg.append(renderRevisionDiff(reviewData, revId, null));
+}
+
+function extractCommitMessage(commit) {
+  var subject = commit.subject;
+  var message = commit.message;
+  if (!message) {
+    return undefined;
+  }
+  console.log("MESSAGE", message);
+  var subjectIndex = message.indexOf(subject);
+  if (subjectIndex >= 0) {
+    message = message.substring(subjectIndex + subject.length, message.length);
+  }
+  var changeIndex = message.indexOf("Change-Id: ");
+  if (changeIndex >= 0) {
+    message = message.substring(0, changeIndex);
+  }
+  return $.trim(message);
+}
+
+function renderRevisionDiff(reviewData, revId, baseId) {
+  var $container = $("<div/>");
+  var $toggle = $("<div class='T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO show-diffs-button'/>")
+    .text("Show diffs")
+    .css({fontWeight: "bold", margin: "10px 0"})
+    .click(function() {
+      if ($toggle.hasClass("showing")) {
+        $toggle.text("Show diffs");
+        $box.hide();
+        $toggle.removeClass("showing");
+      } else {
+        $toggle.text("Hide diffs");
+        $box.show();
+        $toggle.addClass("showing");
+      }
+    }).appendTo($container);  
+
+  var $box = $("<div/>").appendTo($container).hide();
+
+  loadFiles(reviewData._number, revId, function(resp) {
+    console.log("Loaded files", resp);
+    if (!resp.success) {
+      return;
+    }
+    for (var k in resp.data) {
+      if (k == "/COMMIT_MSG") {
+        continue;
+      }
+      renderFileBox(reviewData, revId, k, baseId).appendTo($box);
+    }
+  });    
+
+  return $container;
+}
+
+function renderFileBox(reviewData, revId, file, baseId) {
+  var $filebox = $("<div class='gerrit-file-box'/>");
+  $filebox.append($("<div class='gerrit-file-title'/>").text(file));
+  loadDiff(reviewData._number, revId, file, undefined, function(resp) {
+    if (resp.success) {
+      console.log("Loaded file diffs for " + file, resp.data);
+      $filebox.append(appendFileDiff($filebox, resp.data));
+    } else {
+      $filebox.append($("<div class='gerrit-error'/>").text("Error loading diff :'("));
+    }
+  });  
+  return $filebox;
+}
+
+function appendFileDiff($box, data) {
+  var contextLines = 3;
+  var aLine = 1, bLine = 1;
+  var curSection = 0;
+  
+  function renderHeader(text) {
+    return $("<div class='gerrit-line-header'/>").text(text);
+  }
+
+  function renderLineHeader(a, b) {
+    return renderHeader("@@ -" + a + ", +" + b + " @@");
+  }
+
+  function renderLine(text, type) {
+    var prefix = type == "new" ? "+" : type == "old" ? "-" : " ";
+    var $line = $("<pre class='gerrit-line'/>").text(prefix + text).appendTo($box);
+    if (type == "new") {
+      $line.addClass("gerrit-new-line");
+    } else if (type == "old") {
+      $line.addClass("gerrit-old-line");
+    }
+    return $line;
+  }
+
+  if (data.change_type == "ADDED") {
+    $box.append(renderHeader("(NEW FILE)"));
+  } else if (data.change_type == "DELETED") {
+    $box.append(renderHeader("(DELETED FILE)"));
+  } else if (data.change_type == "RENAMED") {
+    $box.append(renderHeader("(FILE RENAMED)"));
+  }
+
+  $box.append(renderLine(data.diff_header[data.diff_header.length-2]).addClass("gerrit-old-line"));
+  $box.append(renderLine(data.diff_header[data.diff_header.length-1]).addClass("gerrit-new-line"));
+
+  var forwardLines = -1;
+  while (curSection < data.content.length) {
+    var section = data.content[curSection];
+    if ("ab" in section) {
+      aLine += section.ab.length;
+      bLine += section.ab.length;
+      if (forwardLines >= 0) {
+        var toAppend = Math.min(section.ab.length, contextLines - forwardLines);
+        for (var i = 0; i < toAppend; i++) {
+          $box.append(renderLine(section.ab[i]));
+          forwardLines += 1;
+        }
+        if (forwardLines >= contextLines) {
+          forwardLines = -1;
+        }
+      }
+    } else if ("skip" in section) {
+      aLine += section.skip;
+      bLine += section.skip;
+      forwardLines = -1;
+    } else {
+      if (forwardLines < 0) {
+        // Starting a new section
+        if (curSection > 0 && "ab" in data.content[curSection - 1]) {
+          // Walk backwards for some context lines
+          var backSection = data.content[curSection - 1];
+          var backLines = Math.min(backSection.ab.length, contextLines);
+          $box.append(renderLineHeader(aLine-backLines, bLine-backLines));
+  
+          for (var i = backSection.ab.length - backLines; i < backSection.ab.length; i++) {
+            $box.append(renderLine(backSection.ab[i]));
+          }
+        } else {
+          $box.append(renderLineHeader(aLine, bLine));
+        }
+      }
+
+      if ("a" in section) {
+        for (var i = 0; i < section.a.length; i++) {
+          $box.append(renderLine(section.a[i], "old"));
+        }
+        aLine += section.a.length;
+      }
+      if ("b" in section) {
+        for (var i = 0; i < section.b.length; i++) {
+          $box.append(renderLine(section.b[i], "new"));
+        }
+        bLine += section.b.length;
+      }
+
+      // Collect some forward lines
+      forwardLines = 0;
+    }
+    curSection += 1
+  }
 }
 
 function indexOf(array, func, opt_backward) {
@@ -288,75 +474,6 @@ function indexOf(array, func, opt_backward) {
       }
     }
     return -1;
-  }
-}
-
-_FUNC_NOT_EMPTY = function(l) { return l != ""; };
-
-function _trimLines(lines) {
-  return lines.slice(indexOf(lines, _FUNC_NOT_EMPTY), indexOf(lines, _FUNC_NOT_EMPTY, true) + 1);
-}
-
-function _appendDiffs($container, lines, opt_hideHeader) {
-  lines = lines.slice(indexOf(lines, function(l) { return l != ""; }));
-
-  var diffStart = indexOf(lines, function(l) { return l.indexOf("Change-Id:") == 0; });
-
-  if (!opt_hideHeader) {
-    var $header = highlightBox().appendTo($container);
-    var headerLines = _trimLines(lines.slice(0, diffStart));
-    for (var i=0; i<headerLines.length; i++) {
-      var $line = $("<span/>").text(headerLines[i]).append("<br/>").appendTo($header);
-      if (i == 0) {
-        $line.css({fontWeight: "bold", fontSize: "1.3em"});
-      }
-    }
-  }
-
-  var $toggle = $("<div class='T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO show-diffs-button'/>")
-    .text("Show diffs")
-    .css({fontWeight: "bold", margin: "10px 0"})
-    .click(function() {
-      if ($toggle.hasClass("showing")) {
-        $toggle.text("Show diffs");
-        $box.hide();
-        $toggle.removeClass("showing");
-      } else {
-        $toggle.text("Hide diffs");
-        $box.show();
-        $toggle.addClass("showing");
-      }
-    }).appendTo($container);
-
-  var $box = $("<div/>").appendTo($container).hide();
-
-  var $cur = $box;
-  var inFileDiff = false;
-  for (var i=diffStart; i < lines.length; i++) {
-    var line = lines[i];
-    if (line == "--") {
-      break;
-    }
-    var $line = $("<div/>").text(line).css({fontFamily: "monospace", padding: "3px 0"});
-    if (inFileDiff && line == "") {
-      continue;
-    } else if (line == "") {
-      $line.append("<br/>");
-    } else if (inFileDiff && line[0] == "+") { // is add
-      //$line.css({color: greenColor, backgroundColor: greenBg});
-      $line.css({backgroundColor: greenBg});
-    } else if (inFileDiff && line[0] == "-") { // is remove
-      //$line.css({color: redColor, backgroundColor: redBg});
-      $line.css({backgroundColor: redBg});
-    } else if (line.indexOf("diff --git") == 0) { // is new file
-      $cur = highlightBox("#fdfdfd", "#eee").appendTo($box);
-      $line.append("<br/><br/>");
-      $line.css({fontWeight: "bold", fontSize: "1.3em"});
-      inFileDiff = true;
-    } else if (line.indexOf("@@") == 0) {
-      $line.css("fontWeight", "bold");
-    }
-    $cur.append($line);
   }
 }
 
@@ -430,13 +547,16 @@ function formatMergeFailed($msg, text, reviewData) {
 }
 
 var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
+function extractPatchSet(text) {
+  return RE_PATCHSET.exec(text)[1];
+}
+
 function formatNewPatch($msg, text, reviewData) {
-  var pid = RE_PATCHSET.exec(text)[1];
+  var pid = extractPatchSet(text);
   $msg.empty().html("<h3>New Patch Set: " + pid + "</h3>");
   
-  var lines = text.split("\n");
-  var diffStart = indexOf(lines, function(l) { return l.indexOf(".....") == 0; })+1;
-  _appendDiffs($msg, lines.slice(diffStart), true);
+  var revId = getRevisionIdByPatchNumber(reviewData, pid);
+  $msg.append(renderRevisionDiff(reviewData, revId, null));  
 }
 
 function isApproved(reviewData) {
@@ -558,6 +678,7 @@ function initialize() {
     authenticate(function(resp) {
       if (resp.success) {
         console.log("Authenticated!");
+        checkDiff();
       } else {
         console.log("Not authenticated!");
         showNeedLogin();
@@ -591,7 +712,7 @@ function checkDiff() {
   if (id != rbId) {
     clearDiff();
     if (id) {
-      renderDiff(id);
+      renderChange(id);
     }
   }
 }

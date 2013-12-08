@@ -71,3 +71,52 @@
 .red {
   color: #b30000 !important;
 }
+
+.gerrit-file-box {
+  background-color: #fdfdfd;
+  border: 1px solid #eee;
+  padding: 10px;
+  margin: 10px 0;
+  font-family: monospace;
+}
+
+.gerrit-file-box .gerrit-file-title {
+  padding: 3px 0;
+  font-weight: bold;
+  font-size: 1.3em;
+}
+
+.gerrit-file-box .gerrit-line-header {
+  font-weight: bold;
+  padding: 3px 0;
+  margin-top: 10px;
+}
+
+.gerrit-file-box .gerrit-line {
+  padding: 3px 0;
+  margin: 0;
+}
+
+.gerrit-file-box .gerrit-new-line {
+  background-color: #d4fad5;
+}
+
+.gerrit-file-box .gerrit-old-line {
+  background-color: #ffd9d9;
+}
+
+.gerrit-highlight-box {
+  background-color: #ffffdd;
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin: 10px 0;
+}
+
+.gerrit-header {
+  font-weight: bold;
+  font-size: 1.3em;
+}
+
+.gerrit-highlight-box p:last-child {
+  margin-bottom: 0;
+}
