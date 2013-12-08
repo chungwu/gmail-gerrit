@@ -104,7 +104,7 @@ function initializeAuth(callback) {
 }
 
 function loadChange(rbId, callback) {
-  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS', 'DETAILED_LABELS'];
+  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS', 'DETAILED_LABELS', 'ALL_FILES'];
   ajax("/changes/" + rbId + "/detail", callback, 'GET', {o: options}, {traditional: true});
   return true;
 }

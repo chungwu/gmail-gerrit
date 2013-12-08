@@ -240,9 +240,13 @@ function formatThread(reviewData) {
   var cardIndex = 0;
   $(".Bk", $thread).each(function() {
     if ($(this).html().indexOf("gmail_quote") >= 0) {
+      // someone sent this email directly; don't format.
+      // TODO: we need a much better way of detecting this!
+      $(this).addClass("gerrit-formatted");
       return;
     }
     $(this).data("gerritMessageIndex", cardIndex - 1);
+    $(this).data("gerritMessage", true);
     cardIndex += 1;
   });
 
@@ -266,15 +270,12 @@ function formatThread(reviewData) {
 function formatCard($card, reviewData) {
   var $msg = $($(".ii div", $card)[0]);
   var text = $msg.text();
-  var html = $msg.html();
 
   if (!$.trim(text)) {
     return;
   }
 
-  if (html.indexOf("gmail_quote") >= 0) {
-    // Don't format; someone replied to the thread directly
-  } else if (/^Gerrit-MessageType: newchange/gm.test(text)) {
+  if (/^Gerrit-MessageType: newchange/gm.test(text)) {
     formatNewChange($msg, text, reviewData);
   } else if (/^Gerrit-MessageType: comment/gm.test(text)) {
     formatComment($msg, text, reviewData);
@@ -351,18 +352,13 @@ function renderRevisionDiff(reviewData, revId, baseId) {
 
   var $box = $("<div/>").appendTo($container).hide();
 
-  loadFiles(reviewData._number, revId, function(resp) {
-    console.log("Loaded files", resp);
-    if (!resp.success) {
-      return;
+  var files = reviewData.revisions[revId].files;
+  for (var file in files) {
+    if (file == "/COMMIT_MSG") {
+      continue;
     }
-    for (var k in resp.data) {
-      if (k == "/COMMIT_MSG") {
-        continue;
-      }
-      renderFileBox(reviewData, revId, k, baseId).appendTo($box);
-    }
-  });    
+    renderFileBox(reviewData, revId, file, baseId).appendTo($box);
+  }
 
   return $container;
 }
