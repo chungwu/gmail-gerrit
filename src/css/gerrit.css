@@ -115,12 +115,13 @@
 }
 
 .gerrit-line-edit-part-old {
-  background-color: #faa;
+  /*background-color: #faa;*/
+  background-color: #ffcccc;
   display: inline-block;
 }
 
 .gerrit-line-edit-part-new {
-  background-color: #9f9;
+  background-color: #B5F7B5;
   display: inline-block;
 }
 
