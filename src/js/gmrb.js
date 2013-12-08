@@ -446,6 +446,19 @@ function appendFileDiff($box, data) {
   $box.append(renderLine(data.diff_header[data.diff_header.length-2]).addClass("gerrit-old-line"));
   $box.append(renderLine(data.diff_header[data.diff_header.length-1]).addClass("gerrit-new-line"));
 
+  function appendDiffLinesSide(lines, edits, type) {
+    if (edits) {
+      var segs = segmentEdits(lines, edits);
+      for (var i = 0; i < segs.length; i++) {
+        $box.append(renderLine(segs[i], type));
+      }
+    } else {
+      for (var i = 0; i < lines.length; i++) {
+        $box.append(renderLine([[lines[i], true]], type));
+      }
+    }
+  }
+
   var forwardLines = -1;
   while (curSection < data.content.length) {
     var section = data.content[curSection];
@@ -484,23 +497,12 @@ function appendFileDiff($box, data) {
       }
 
       if ("a" in section) {
-        for (var i = 0; i < section.a.length; i++) {
-          if ("edit_a" in section) {
-            $box.append(renderLine(segmentEdits(section.a, i, section.edit_a), "old"));
-          } else {
-            $box.append(renderLine([[section.a[i], true]], "old"));
-          }
-        }
+        appendDiffLinesSide(section.a, section.edit_a, "old");
         aLine += section.a.length;
       }
+
       if ("b" in section) {
-        for (var i = 0; i < section.b.length; i++) {
-          if ("edit_b" in section) {
-            $box.append(renderLine(segmentEdits(section.b, i, section.edit_b), "new"));
-          } else {
-            $box.append(renderLine([[section.b[i], true]], "new"));
-          }
-        }
+        appendDiffLinesSide(section.b, section.edit_b, "new");
         bLine += section.b.length;
       }
 
@@ -511,44 +513,60 @@ function appendFileDiff($box, data) {
   }
 }
 
-function segmentEdits(lines, index, edits) {
-  var line = lines[index];
-  var lineIndex = 0;
-  var segmentIndex = 0;
-  for (var i = 0; i < index; i++) {
-    segmentIndex += lines[i].length + 1; // include the newline
-  }
-
+function segmentEdits(lines, edits) {
   var buffer = [];
+  var segmentIndex = 0;
+  var editIndex = 0;
+  var editStartIndex = edits.length > 0 ? edits[0][0] : 0;
 
-  var editStartIndex = 0;
-  for (var i = 0; i < edits.length; i++) {
-    var edit = edits[i];
-    editStartIndex += edit[0];
-    editEndIndex = editStartIndex + edit[1];
-    if (segmentIndex + lineIndex < editStartIndex) {
-      // Starting in the empty space before the next edit segment
-      var len = Math.min(line.length - lineIndex, editStartIndex - lineIndex - segmentIndex);
-      buffer.push([line.substring(lineIndex, lineIndex + len), false]);
-      lineIndex += len;
-    } 
+  for (var l = 0; l < lines.length; l++) {
+    var line = lines[l];
+    var lineIndex = 0;
+    var lineBuffer = [];
 
-    if (segmentIndex + lineIndex >= editStartIndex && segmentIndex + lineIndex < editEndIndex) {
-      // Starting in the middle of an edit segment
-      var len = Math.min(line.length - lineIndex, editEndIndex - lineIndex - segmentIndex);
-      buffer.push([line.substring(lineIndex, lineIndex + len), true]);
-      lineIndex += len;
-    } 
+    while (editIndex < edits.length) {
+      var editEndIndex = editStartIndex + edits[editIndex][1];
 
-    if (lineIndex >= line.length) {
-      break;
+      if (segmentIndex + lineIndex < editStartIndex) {
+        // Consume up to the start of the next edit
+        var len = Math.min(line.length - lineIndex, editStartIndex - lineIndex - segmentIndex);
+        lineBuffer.push([line.substring(lineIndex, lineIndex + len), false]);
+        lineIndex += len;
+      }
+
+      if (lineIndex >= line.length) {
+        // done with this line!
+        break;
+      }
+
+      if (segmentIndex + lineIndex >= editStartIndex && segmentIndex + lineIndex < editEndIndex) {
+        // Currently in the middel of an edit; consume as much as we can
+        var len = Math.min(line.length - lineIndex, editEndIndex - lineIndex - segmentIndex);
+        lineBuffer.push([line.substring(lineIndex, lineIndex + len), true]);
+        lineIndex += len;
+      } 
+
+      if (segmentIndex + lineIndex >= editEndIndex) {
+        // If we've consumed the edit segment, and go to the next one
+        editStartIndex += edits[editIndex][1];
+        editIndex += 1;
+        if (editIndex < edits.length) {
+          editStartIndex += edits[editIndex][0];
+        }
+      }
+
+      if (lineIndex >= line.length) {
+        // done with this line!
+        break;
+      }
     }
 
-    editStartIndex = editEndIndex;
-  }
+    if (lineIndex < line.length) {
+      lineBuffer.push([line.substring(lineIndex), false]);
+    }
 
-  if (lineIndex < line.length) {
-    buffer.push([line.substring(lineIndex), false]);
+    buffer.push(lineBuffer);
+    segmentIndex += line.length + 1;
   }
 
   return buffer;
