@@ -77,19 +77,19 @@ function extractReviewers(data) {
 
 function performActionCallback(id, resp) {
   if (!resp.success) {
-    renderError(id, resp.err_msg);
+    renderErrorBox(id, resp.err_msg);
     alert ("ERROR: " + resp.err_msg);
   }
   loadChange(id, function(resp) {
     if (!resp.success) {
-      renderError(id, resp.err_msg);
+      renderErrorBox(id, resp.err_msg);
       return;
     }
     renderBox(id, resp.data);
   });
 }
 
-function renderError(id, err_msg) {
+function renderErrorBox(id, err_msg) {
   $sideBox.empty();
   var $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: gSettings.url}).appendTo($sideBox);
   $(".status", $header).addClass("red");
@@ -179,7 +179,7 @@ function renderChange(id) {
   function callback(resp) {
     console.log("Loaded rb", resp);
     if (!resp.success) {
-      renderError(id, resp.err_msg);
+      renderErrorBox(id, resp.err_msg);
       return;
     }
     rbId = id;
