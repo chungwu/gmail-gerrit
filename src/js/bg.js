@@ -6,6 +6,8 @@ function contentHandler(request, sender, callback) {
     return loadFiles(request.rbId, request.revisionId, callback);
   } else if (request.type == "loadDiff") {
     return loadDiff(request.rbId, request.revisionId, request.file, request.baseId, callback);
+  } else if (request.type == "loadComments") {
+    return loadComments(request.rbId, request.revisionId, callback);
   } else if (request.type == "viewDiff") {
     return showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
@@ -102,11 +104,13 @@ function initializeAuth(callback) {
 }
 
 function loadChange(rbId, callback) {
-  console.log("Fetching review status for", rbId);
-  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS'];
+  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS', 'DETAILED_LABELS'];
   ajax("/changes/" + rbId + "/detail", callback, 'GET', {o: options}, {traditional: true});
-  //ajax("/changes/" + rbId + "/revisions/current/review", callback);
+  return true;
+}
 
+function loadComments(rbId, revId, callback) {
+  ajax("/changes/" + rbId + "/revisions/" + revId + "/comments/", callback);
   return true;
 }
 

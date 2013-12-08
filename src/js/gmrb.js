@@ -229,9 +229,23 @@ function loadDiff(id, revisionId, file, baseId, callback) {
   authenticatedSend({type: "loadDiff", rbId: id, revisionId: revisionId, file: file, baseId: baseId}, callback);
 }
 
+function loadComments(id, revisionId, callback) {
+  authenticatedSend({type: "loadComments", rbId: id, revisionId: revisionId}, callback);
+}
+
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
   var curId = rbId;
+
+  var cardIndex = 0;
+  $(".Bk", $thread).each(function() {
+    if ($(this).html().indexOf("gmail_quote") >= 0) {
+      return;
+    }
+    $(this).data("gerritMessageIndex", cardIndex - 1);
+    cardIndex += 1;
+  });
+
   function doFormat() {
     if (!rbId || curId != rbId) {
       return;
