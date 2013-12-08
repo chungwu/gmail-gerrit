@@ -72,36 +72,38 @@
   color: #b30000 !important;
 }
 
-.gerrit-file-box {
+.gerrit-content-box {
   background-color: #fdfdfd;
   border: 1px solid #eee;
   padding: 10px;
   margin: 10px 0;
-  font-family: monospace;
 }
 
-.gerrit-file-box .gerrit-file-title {
+.gerrit-file-title {
   padding: 3px 0;
   font-weight: bold;
   font-size: 1.3em;
+  font-family: monospace;
 }
 
-.gerrit-file-box .gerrit-line-header {
+.gerrit-line-header {
   font-weight: bold;
   padding: 3px 0;
   margin-top: 10px;
+  font-family: monospace;
 }
 
-.gerrit-file-box .gerrit-line {
+.gerrit-line {
   padding: 3px 0;
   margin: 0;
+  font-family: monospace;
 }
 
-.gerrit-file-box .gerrit-new-line {
+.gerrit-new-line {
   background-color: #d4fad5;
 }
 
-.gerrit-file-box .gerrit-old-line {
+.gerrit-old-line {
   background-color: #ffd9d9;
 }
 
@@ -117,6 +119,6 @@
   font-size: 1.3em;
 }
 
-.gerrit-highlight-box p:last-child {
+.gerrit-highlight-box p:last-child, .gerrit-content-box p:last-child {
   margin-bottom: 0;
 }

@@ -8,6 +8,8 @@ function contentHandler(request, sender, callback) {
     return loadDiff(request.rbId, request.revisionId, request.file, request.baseId, callback);
   } else if (request.type == "loadComments") {
     return loadComments(request.rbId, request.revisionId, callback);
+  } else if (request.type == "loadFileContent") {
+    return loadFileContent(request.rbId, request.revisionId, request.file, callback);
   } else if (request.type == "viewDiff") {
     return showDiffs(request.rbId);
   } else if (request.type == "commentDiff") {
@@ -128,10 +130,24 @@ function loadFiles(changeId, revisionId, callback) {
   return true;
 }
 
-function ajax(uri, callback, opt_type, opt_data, opt_opts) {
+function loadFileContent(changeId, revisionId, file, callback) {
+  function fileCallback(resp) {
+    if (!resp.success) {
+      callback(resp);
+    } else {
+      resp.data = atob(resp.data);
+      callback(resp);
+    }
+  }
+  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/" + encodeURIComponent(file) + "/content", fileCallback, undefined, undefined, undefined, "text");
+  return true;
+}
+
+function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
+  var dataType = opt_dataType || "json";
   var settings = {
-    dataType: "json",
-    dataFilter: function(data) { return data.substring(4); },
+    dataType: dataType,
+    dataFilter: function(data) { return dataType == "json" ? data.substring(4) : data; },
   };
   if (opt_opts) {
     $.extend(settings, opt_opts);

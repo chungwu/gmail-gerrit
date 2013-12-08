@@ -233,11 +233,18 @@ function loadComments(id, revisionId, callback) {
   authenticatedSend({type: "loadComments", rbId: id, revisionId: revisionId}, callback);
 }
 
+function loadFileContent(id, revisionId, file, callback) {
+  authenticatedSend({type: "loadFileContent", rbId: id, revisionId: revisionId, file: file}, callback);
+}
+
+function renderError(text) {
+  return $("<div class='gerrit-error'/>").text(text);
+}
+
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
   var curId = rbId;
 
-  var cardIndex = 0;
   $(".Bk", $thread).each(function() {
     if ($(this).html().indexOf("gmail_quote") >= 0) {
       // someone sent this email directly; don't format.
@@ -245,9 +252,8 @@ function formatThread(reviewData) {
       $(this).addClass("gerrit-formatted");
       return;
     }
-    $(this).data("gerritMessageIndex", cardIndex - 1);
+
     $(this).data("gerritMessage", true);
-    cardIndex += 1;
   });
 
   function doFormat() {
@@ -276,15 +282,15 @@ function formatCard($card, reviewData) {
   }
 
   if (/^Gerrit-MessageType: newchange/gm.test(text)) {
-    formatNewChange($msg, text, reviewData);
+    formatNewChange($card, $msg, text, reviewData);
   } else if (/^Gerrit-MessageType: comment/gm.test(text)) {
-    formatComment($msg, text, reviewData);
+    formatComment($card, $msg, text, reviewData);
   } else if (/^Gerrit-MessageType: merged/gm.test(text)) {
-    formatMerged($msg, text, reviewData);
+    formatMerged($card, $msg, text, reviewData);
   } else if (/^Gerrit-MessageType: merge-failed/gm.test(text)) {
-    formatMergeFailed($msg, text, reviewData);
+    formatMergeFailed($card, $msg, text, reviewData);
   } else if (/^Gerrit-MessageType: newpatchset/gm.test(text)) {
-    formatNewPatch($msg, text, reviewData);
+    formatNewPatch($card, $msg, text, reviewData);
   }
   $card.addClass("gerrit-formatted");
 }
@@ -298,7 +304,7 @@ function getRevisionIdByPatchNumber(reviewData, patchNumber) {
   return undefined;
 }
 
-function formatNewChange($msg, text, reviewData) {
+function formatNewChange($card, $msg, text, reviewData) {
   $msg.empty();
 
   var pid = extractPatchSet(text);
@@ -321,7 +327,6 @@ function extractCommitMessage(commit) {
   if (!message) {
     return undefined;
   }
-  console.log("MESSAGE", message);
   var subjectIndex = message.indexOf(subject);
   if (subjectIndex >= 0) {
     message = message.substring(subjectIndex + subject.length, message.length);
@@ -366,6 +371,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
 function renderFileBox(reviewData, revId, file, baseId) {
   var $filebox = $("<div class='gerrit-file-box'/>");
   $filebox.append($("<div class='gerrit-file-title'/>").text(file));
+
   loadDiff(reviewData._number, revId, file, undefined, function(resp) {
     if (resp.success) {
       console.log("Loaded file diffs for " + file, resp.data);
@@ -494,9 +500,13 @@ function highlightBox(color, border) {
 }
 
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
-function formatComment($msg, text, reviewData) {
-  var lines = text.split("\n");
+function formatComment($card, $msg, text, reviewData) {
+  var pid = extractPatchSet(text);
+  var revId = getRevisionIdByPatchNumber(reviewData, pid);
   $msg.empty();
+
+  /* Commenting this out for now, but may need to come back to it :-/
+  var lines = text.split("\n");
   var $box = $msg;
   var inFileComment = false;
   for (var i = 0; i < lines.length; i++) {
@@ -538,13 +548,113 @@ function formatComment($msg, text, reviewData) {
 
     $box.append($line);
   };
+
+  $msg.append($("<h6/>").text("NEW STUFF!"));
+  */
+
+  var gMsg = guessGerritMessage($card, text, reviewData);
+  console.log("Message", gMsg);
+  if (gMsg._revision_number != pid) {
+    $msg.append(renderError("UH-OH!!! Revision numbers don't match!!  Go bug Chung!!"));
+    return;
+  }
+
+  var messageLines = gMsg.message.split("\n");
+  var $header = $("<div/>").appendTo($msg);
+  for (var i = 0; i < messageLines.length; i++) {
+    var ptext = messageLines[i];
+    var $line = $(i == 0 ? "<div/>" : "<p/>").text(ptext);
+    if (i == 0) {
+      $line.addClass("gerrit-header");
+    }
+    if (ptext.indexOf("Code-Review+2") >= 0) {
+      $header.addClass("gerrit-highlight-box");
+      $line.addClass("green");
+    } else {
+      $header.addClass("gerrit-content-box");
+    }
+    $header.append($line);
+  }
+
+  function doFormatFileComments(file, content, comments) {
+    var lines = content.split("\n");
+    var $filebox = $("<div class='gerrit-content-box'/>").appendTo($msg);
+    $filebox.append($("<div class='gerrit-file-title'/>").text(file));
+    for (var i = 0; i < comments.length; i++) {
+      $("<br/>").appendTo($filebox);
+      var comment = comments[i];
+      $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + lines[comment.line-1]).appendTo($filebox);
+      $("<div/>").text(comment.message).appendTo($filebox);
+    }
+    console.log("FILE " + file, comments);
+  }
+
+  function formatFileComments(file, comments) {
+    if (reviewData.revisions[revId].files[file].content) {
+      doFormatFileComments(file, reviewData.revisions[revId].files[file].content, comments);
+    } else {
+      loadFileContent(reviewData._number, revId, file, function(resp) {
+        if (!resp.success) {
+          $msg.append(renderError("Cannot load file :'("));
+        } else {
+          reviewData.revisions[revId].files[file].content = resp.data;
+          doFormatFileComments(file, resp.data, comments);
+        }
+      });
+    }
+  }
+
+  function doFormatComments(comments) {
+    for (var file in comments) {
+      var fileComments = comments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
+      if (fileComments.length == 0) {
+        continue;
+      }
+      formatFileComments(file, fileComments);
+    }
+  }
+
+  if (reviewData.revisions[revId].comments) {
+    doFormatComments(reviewData.revisions[revId].comments);
+  } else {
+    loadComments(reviewData._number, revId, function(resp) {
+      if (!resp.success) {
+        $msg.append(renderError("Cannot load comments :'("));
+      } else {
+        console.log("Loaded comments", resp.data);
+        reviewData.revisions[revId].comments = resp.data;
+        doFormatComments(resp.data);
+      }
+    });
+  }
 }
 
-function formatMerged($msg, text, reviewData) {
+function guessGerritMessage($card, text, reviewData) {
+  // TODO: this tries to match a Gmail $card with a reviewData.messages.
+  // Very fragile!  Surely there's a better way???
+  var cardFrom = $("span.gD", $card).text();
+  console.log("Card from:", cardFrom);
+  for (var i = 0; i < reviewData.messages.length; i++) {
+    var msg = reviewData.messages[i];
+    if (!msg.author) {
+      // Gerrit-generated messages (like merge failed) do not have an author
+      continue;
+    }
+    if ((cardFrom.indexOf(msg.author.name) >= 0 || 
+         cardFrom.indexOf(msg.author.email) >= 0 ||
+         cardFrom.indexOf(msg.author.username) >= 0) && 
+        text.indexOf(msg.message) >= 0) {
+      return reviewData.messages[i];
+    }
+  }
+  return undefined;
+}
+
+function formatMerged($card, $msg, text, reviewData) {
   $msg.empty().html("<h3>Merged</h3>");
 }
 
-function formatMergeFailed($msg, text, reviewData) {
+function formatMergeFailed($card, $msg, text, reviewData) {
   $msg.empty().html("<h3>Merge Failed</h3>");
   var lines = text.split('\n');
   var $ul = $("<ul/>").appendTo($msg);
@@ -561,7 +671,7 @@ function extractPatchSet(text) {
   return RE_PATCHSET.exec(text)[1];
 }
 
-function formatNewPatch($msg, text, reviewData) {
+function formatNewPatch($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
   $msg.empty().html("<h3>New Patch Set: " + pid + "</h3>");
   
