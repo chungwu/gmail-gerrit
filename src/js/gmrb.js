@@ -369,10 +369,10 @@ function renderRevisionDiff(reviewData, revId, baseId) {
 }
 
 function renderFileBox(reviewData, revId, file, baseId) {
-  var $filebox = $("<div class='gerrit-file-box'/>");
+  var $filebox = $("<div class='gerrit-content-box'/>");
   $filebox.append($("<div class='gerrit-file-title'/>").text(file));
 
-  loadDiff(reviewData._number, revId, file, undefined, function(resp) {
+  loadDiff(reviewData._number, revId, file, baseId, function(resp) {
     if (resp.success) {
       console.log("Loaded file diffs for " + file, resp.data);
       $filebox.append(appendFileDiff($filebox, resp.data));
@@ -384,6 +384,17 @@ function renderFileBox(reviewData, revId, file, baseId) {
 }
 
 function appendFileDiff($box, data) {
+  if (!data.diff_header || data.diff_header.length == 0) {
+    // There's actually no difference!  Ignore this file entirely
+    var $parent = $box.parent();
+    $box.detach();
+    if ($parent.children().length == 0) {
+      // If everything got detached, leave a message saying why
+      $parent.append($("<div/>").text("No changes!"));
+    }
+    return;
+  }
+
   var contextLines = 3;
   var aLine = 1, bLine = 1;
   var curSection = 0;
@@ -403,7 +414,10 @@ function appendFileDiff($box, data) {
       $line.addClass("gerrit-new-line");
     } else if (type == "old") {
       $line.addClass("gerrit-old-line");
+    } else if (text.length == 0) {
+      $line.addClass("gerrit-line-empty");
     }
+
     return $line;
   }
 
@@ -668,15 +682,34 @@ function formatMergeFailed($card, $msg, text, reviewData) {
 
 var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
 function extractPatchSet(text) {
-  return RE_PATCHSET.exec(text)[1];
+  return parseInt(RE_PATCHSET.exec(text)[1]);
 }
 
 function formatNewPatch($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
-  $msg.empty().html("<h3>New Patch Set: " + pid + "</h3>");
+  var basePid = guessNewPatchBase(pid, reviewData);
+
+  $msg.empty().html("<h3>New Patch Set: " + pid + (basePid ? " (vs " + basePid + ")" : "") + "</h3>");
   
   var revId = getRevisionIdByPatchNumber(reviewData, pid);
-  $msg.append(renderRevisionDiff(reviewData, revId, null));  
+  $msg.append(renderRevisionDiff(reviewData, revId, basePid));
+}
+
+function guessNewPatchBase(pid, reviewData) {
+  // Guess the best "base" to diff against.  It's going to be the last one that was
+  // commented upon by someone other than the author.
+
+  for (var i = reviewData.messages.length - 1; i >= 0; i--) {
+    var msg = reviewData.messages[i];
+    if (!msg.author) {
+      // Messages sent by Gerrit have no author
+      continue;
+    }
+    if (msg._revision_number < pid && msg.author.username != reviewData.owner.username) {
+      return msg._revision_number;
+    }
+  }
+  return undefined;
 }
 
 function isApproved(reviewData) {

@@ -119,7 +119,7 @@ function loadComments(rbId, revId, callback) {
 function loadDiff(changeId, revisionId, file, baseId, callback) {
   var options = {intraline: true};
   if (baseId) {
-    options.base = baseid;
+    options.base = baseId;
   }
   ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/" + encodeURIComponent(file) + "/diff", callback, 'GET', options);
   return true;
