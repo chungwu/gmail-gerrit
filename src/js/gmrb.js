@@ -374,7 +374,6 @@ function renderFileBox(reviewData, revId, file, baseId) {
 
   loadDiff(reviewData._number, revId, file, baseId, function(resp) {
     if (resp.success) {
-      console.log("Loaded file diffs for " + file, resp.data);
       $filebox.append(appendFileDiff($filebox, resp.data));
     } else {
       $filebox.append($("<div class='gerrit-error'/>").text("Error loading diff :'("));
@@ -633,7 +632,6 @@ function formatComment($card, $msg, text, reviewData) {
   */
 
   var gMsg = guessGerritMessage($card, text, reviewData);
-  console.log("Message", gMsg);
   if (gMsg._revision_number != pid) {
     $msg.append(renderError("UH-OH!!! Revision numbers don't match!!  Go bug Chung!!"));
     return;
@@ -666,7 +664,6 @@ function formatComment($card, $msg, text, reviewData) {
       $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + lines[comment.line-1]).appendTo($filebox);
       $("<div/>").text(comment.message).appendTo($filebox);
     }
-    console.log("FILE " + file, comments);
   }
 
   function formatFileComments(file, comments) {
@@ -701,7 +698,6 @@ function formatComment($card, $msg, text, reviewData) {
       if (!resp.success) {
         $msg.append(renderError("Cannot load comments :'("));
       } else {
-        console.log("Loaded comments", resp.data);
         reviewData.revisions[revId].comments = resp.data;
         doFormatComments(resp.data);
       }
@@ -713,7 +709,6 @@ function guessGerritMessage($card, text, reviewData) {
   // TODO: this tries to match a Gmail $card with a reviewData.messages.
   // Very fragile!  Surely there's a better way???
   var cardFrom = $("span.gD", $card).text();
-  console.log("Card from:", cardFrom);
   for (var i = 0; i < reviewData.messages.length; i++) {
     var msg = reviewData.messages[i];
     if (!msg.author) {
