@@ -32,7 +32,10 @@ var infoBox = (
     "</div>" +
     "<div>" +
       "<span class='gerrit-button action-button submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Submit</span>" +
-      "<span class='gerrit-button action-button rebase-submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Rebase &amp; submit</span>" +
+    "</div>" +
+    "<div>" +
+      "<span class='gerrit-button action-button rebase-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Rebase</span>" +
+      "<span class='gerrit-button action-button rebase-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; submit</span>" +
     "</div>" +
   "</div>"
 );
@@ -125,15 +128,11 @@ function renderBox(id, data) {
     $status.addClass("green");
     if (isOwner) {
       $(".submit-button", $info).show();
+      $(".rebase-button", $info).show();
+      $(".rebase-submit-button", $info).show();
     }
   } else if (status == "Merged") {
     $status.addClass("green");
-  } else if (status == "Merge Pending") {
-    /* Rebase not supported yet
-    if (isOwner) {
-      $(".rebase-submit-button").show();
-    }
-    */
   } else {
     if (isReviewer || isOwner) {
       $(".approve-button", $info).show();
@@ -164,7 +163,9 @@ function renderBox(id, data) {
     } else if ($this.hasClass("submit-button")) {
       submitDiff(id, actionButtonCallback);
     } else if ($this.hasClass("rebase-submit-button")) {
-      rebaseSubmitDiff(id, actionButtonCallback);
+      rebaseSubmitChange(id, actionButtonCallback);
+    } else if ($this.hasClass("rebase-button")) {
+      rebaseChange(id, actionButtonCallback);
     }
   });  
 
@@ -1031,19 +1032,30 @@ function commentDiff(id, approve, comment, callback) {
       return;
     }
   }
-  chrome.runtime.sendMessage({type: "commentDiff", rbId: id, approve: approve, comment: commentText}, callback);
+  authenticatedSend({type: "commentDiff", rbId: id, approve: approve, comment: commentText}, callback);
 }
 
 function approveSubmitDiff(id, callback) {
-  chrome.runtime.sendMessage({type: "approveSubmitDiff", rbId: id}, callback);
+  authenticatedSend({type: "approveSubmitDiff", rbId: id}, callback);
 }
 
 function submitDiff(id, callback) {
-  chrome.runtime.sendMessage({type: "submitDiff", rbId: id}, callback);
+  authenticatedSend({type: "submitDiff", rbId: id}, callback);
 }
 
-function rebaseSubmitDiff(id, callback) {
-  chrome.runtime.sendMessage({type: "rebaseSubmitDiff", rbId: id}, callback);
+function rebaseChange(id, callback) {
+  authenticatedSend({type: "rebaseChange", rbId: id}, callback);
+}
+
+function rebaseSubmitChange(id, callback) {
+  function rebaseCallback(resp) {
+    if (!resp.success) {
+      callback(resp);
+    } else {
+      authenticatedSend({type: "submitDiff", rbId: id}, callback);
+    }
+  }
+  rebaseChange(id, rebaseCallback);
 }
 
 function initialize() {

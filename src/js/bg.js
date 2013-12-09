@@ -16,8 +16,8 @@ function contentHandler(request, sender, callback) {
     return commentDiff(request.rbId, request.approve, request.comment, callback);
   } else if (request.type == "submitDiff") {
     return submitDiff(request.rbId, callback);
-  } else if (request.type == "rebaseSubmitDiff") {
-    return rebaseSubmitDiff(request.rbId, callback);
+  } else if (request.type == "rebaseChange") {
+    return rebaseChange(request.rbId, callback);
   } else if (request.type == "approveSubmitDiff") {
     return approveSubmitDiff(request.rbId, callback);
   } else if (request.type == "settings") {
@@ -73,6 +73,12 @@ function approveSubmitDiff(rbId, callback) {
       callback(resp);
     }
   });
+  return true;
+}
+
+function rebaseChange(rbId, callback) {
+  var url = '/changes/' + rbId + '/rebase';
+  ajax(url, callback, 'POST');
   return true;
 }
 
