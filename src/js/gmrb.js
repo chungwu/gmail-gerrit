@@ -229,8 +229,38 @@ function loadDiff(id, revisionId, file, baseId, callback) {
   authenticatedSend({type: "loadDiff", rbId: id, revisionId: revisionId, file: file, baseId: baseId}, callback);
 }
 
+function loadAndCacheComments(reviewData, revisionId, callback) {
+  if (reviewData.revisions[revisionId].comments) {
+    callback({success: true, data: reviewData.revisions[revisionId].comments});
+  } else {
+    loadComments(reviewData._number, revisionId, function(resp) {
+      if (!resp.success) {
+        callback(resp);
+      } else {
+        reviewData.revisions[revisionId].comments = resp.data;
+        callback(resp);
+      }
+    });
+  }
+}
+
 function loadComments(id, revisionId, callback) {
   authenticatedSend({type: "loadComments", rbId: id, revisionId: revisionId}, callback);
+}
+
+function loadAndCacheFileContent(reviewData, revId, file, callback) {
+  if (reviewData.revisions[revId].files[file].content) {
+    callback({success: true, data: reviewData.revisions[revId].files[file].content});
+  } else {
+    loadFileContent(reviewData._number, revId, file, function(resp) {
+      if (!resp.success) {
+        callback(resp);
+      } else {
+        reviewData.revisions[revId].files[file].content = resp.data;
+        callback(resp);
+      }
+    });
+  }
 }
 
 function loadFileContent(id, revisionId, file, callback) {
@@ -596,134 +626,249 @@ function highlightBox(color, border) {
   return $("<div/>").css({backgroundColor: color, padding: "10px", margin: "10px 0", border: "1px solid " + border});
 }
 
+function extractAndLoadMessageComments(reviewData, revId, text, callback) {
+  loadAndCacheComments(reviewData, revId, function(resp) {
+    if (!resp.success) {
+      callback(resp);
+    } else {
+      var allComments = resp.data;
+
+      function guessCommentId(file, lineComment) {
+        for (var i = 0; i < allComments[file].length; i++) {
+          var c = allComments[file][i];
+          if (c.line == lineComment.line && c.message.indexOf(lineComment.comments.join("\n")) == 0) {
+            return c.id;
+          }
+        }
+        return undefined;
+      }
+
+      var messageComments = extractMessageComments(text);
+      for (var i = 0; i < messageComments.fileComments.length; i++) {
+        var fileComment = messageComments.fileComments[i];
+        for (var j = 0; j < fileComment.lineComments.length; j++) {
+          var lineComment = fileComment.lineComments[j];
+          lineComment.id = guessCommentId(fileComment.file, lineComment);
+        }
+      }
+      callback({success: true, data: messageComments});
+    }
+  });
+}
+
+function extractMessageComments(text) {
+  var lines = text.split("\n");
+  var index = 0;
+
+  function collectLineComments() {
+    var buffer = [];
+    while (index < lines.length) {
+      var line = lines[index];
+      if (line == "--" || line.indexOf("Line ") == 0 || line.indexOf(".........") == 0) {
+        break;
+      }
+      buffer.push(line);
+      index += 1;
+    }
+    return trimEmptyLines(buffer);
+  }
+
+  function collectFileComments() {
+    var buffer = [];
+    while (index < lines.length) {
+      var line = lines[index];
+      if (line == "--" || line.indexOf("..............") == 0) {
+        break;
+      }
+      if (line.indexOf("Line ") == 0 && _RE_LINE.test(line)) {
+        var m = _RE_LINE.exec(line);
+        index += 1;
+        buffer.push({line: parseInt(m[1]), lineContent: m[2], comments: collectLineComments()});
+      } else {
+        index += 1;
+      }
+    }
+    return buffer;
+  }
+
+  function collectFiles() {
+    var buffer = [];
+    var sawSeparator = false;
+    while (index < lines.length) {
+      var line = lines[index];
+      if (line == "--") {
+        break;
+      } else if (line.indexOf("..................") == 0) {
+        sawSeparator = true;
+        index += 1;
+      } else if (sawSeparator && line.indexOf("File ") == 0) {
+        index += 1;
+        buffer.push({file: _RE_FILE_NAME.exec(line)[1], lineComments: collectFileComments()});
+        sawSeparator = false;
+      } else {
+        sawSeparator = false;
+        index += 1;
+      }
+    }
+    return buffer;
+  }
+
+  function collectPatchSetComments() {
+    var buffer = [];
+    var start = false;
+    while (index < lines.length) {
+      var line = lines[index];
+      if (line == "--" || (start && line.indexOf("........................") == 0)) {
+        break;
+      } else if (line.indexOf("Patch Set ") == 0) {
+        start = true;
+        buffer.push(line);
+        index += 1;
+      } else if (start) {
+        buffer.push(line);
+        index += 1;
+      } else {
+        index += 1;
+      }
+    }
+    return trimEmptyLines(buffer);
+  }
+
+  return {message: collectPatchSetComments(), fileComments: collectFiles()};
+}
+
+_RE_FILE_NAME = /^File (.*)$/
+_RE_LINE = /^Line (\d+): (.*)$/
+
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
+
 function formatComment($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
   var revId = getRevisionIdByPatchNumber(reviewData, pid);
   $msg.empty();
 
-  /* Commenting this out for now, but may need to come back to it :-/
-  var lines = text.split("\n");
-  var $box = $msg;
-  var inFileComment = false;
-  for (var i = 0; i < lines.length; i++) {
-    var line = lines[i];
+  // It is hard to use the REST API and figure out which comments belong to
+  // this email message, since the comments we get from the REST API are just
+  // grouped together under a file, and we can't tell which belong to which
+  // email message.  Here we have two separate heuristics -- one by looking
+  // at the actual email content, and matching it with the ones we get
+  // from the REST API to attach IDs to those comments.  Another is to try
+  // to match this email message to one of the reviewData.messages, which is
+  // also just a best-guess effort, and then to keep all comments created
+  // with the same timestamp as the reviewData.message.  Both suck; extracting
+  // from email body depends on Gerrit's email formatting, and also hopes
+  // that no two people have made the same comment on the same line.  Using
+  // the REST API entirely depends on the message having the same timestamp
+  // as the comment, and also depends on the rather unreliable and fuzzy
+  // matching from email message to reviewData.message.  By default, we extract
+  // from email body, because it's more efficient and maybe more reliable.
 
-    if (line == "--") {
-      break;
+  extractAndLoadMessageComments(reviewData, revId, text, function(resp) {
+    if (!resp.success) {
+      $msg.append(renderError("Failed to load comments :'("));
+    } else {
+      appendMessageComments(resp.data);
     }
+  });
 
-    if (_RE_COMMENT_COUNT.test(line)) {
-      // also skip the next line
-      i += 1;
-      continue;
+  /*
+  loadMessageComments($card, text, reviewData, revId, function(resp) {
+    if (!resp.success) {
+      $msg.append(renderError("Failed to load comments :'("));
+    } else {
+      console.log("Loaded: ", resp.data);
+      $msg.append($("<h4>Loaded</h4>"));
+      appendMessageComments(resp.data);
     }
-
-    var $line = $("<div/>").text(line).css("padding", "3px 0");
-    if (inFileComment && line == "") {
-      continue;
-    } else if (line == "") {
-      $line.append("<br/>");
-    } else if (line.indexOf("Patch Set") == 0) { // is patch set label
-      var color = line.indexOf("+2") >= 0 ? greenColor : line.indexOf("-1") >= 0 ? redColor : line.indexOf("-2") >= 0 ? redColor : "inherit";
-      $line.css("color", color);
-      $line.css("fontSize", "1.3em");
-      $line.css("fontWeight", "bold");
-      $box = highlightBox().appendTo($msg);
-    } else if (line.indexOf("File ") == 0) { // is file title
-      $line.css({fontFamily: "monospace", fontSize: "1.3em", fontWeight: "bold"});
-      $box = highlightBox().appendTo($msg);
-      inFileComment = true;
-    } else if (line.indexOf("Line ") == 0) { // is line diff
-      $line.css("fontFamily", "monospace");
-      $line.prepend("<br/>");
-    }
-
-    if (line.indexOf("............") == 0) {
-      $box = $msg;
-    }
-
-    $box.append($line);
-  };
-
-  $msg.append($("<h6/>").text("NEW STUFF!"));
+  });
   */
-
-  var gMsg = guessGerritMessage($card, text, reviewData);
-  if (gMsg._revision_number != pid) {
-    $msg.append(renderError("UH-OH!!! Revision numbers don't match!!  Go bug Chung!!"));
-    return;
-  }
-
-  var messageLines = gMsg.message.split("\n");
-  var $header = $("<div/>").appendTo($msg);
-  for (var i = 0; i < messageLines.length; i++) {
-    var ptext = messageLines[i];
-    var $line = $(i == 0 ? "<div/>" : "<p/>").text(ptext);
-    if (i == 0) {
-      $line.addClass("gerrit-header");
+  
+  function appendMessageComments(messageComments) {
+    var $header = $("<div/>").appendTo($msg);
+    for (var i = 0; i < messageComments.message.length; i++) {
+      var ptext = messageComments.message[i];
+      var $line = $(i == 0 ? "<div/>" : "<p/>").text(ptext);
+      if (i == 0) {
+        $line.addClass("gerrit-header");
+      }
+      if (ptext.indexOf("Code-Review+2") >= 0) {
+        $header.addClass("gerrit-highlight-box");
+        $line.addClass("green");
+      } else {
+        $header.addClass("gerrit-content-box");
+      }
+      $header.append($line);
     }
-    if (ptext.indexOf("Code-Review+2") >= 0) {
-      $header.addClass("gerrit-highlight-box");
-      $line.addClass("green");
-    } else {
-      $header.addClass("gerrit-content-box");
-    }
-    $header.append($line);
-  }
 
-  function doFormatFileComments(file, content, comments) {
-    var lines = content.split("\n");
-    var $filebox = $("<div class='gerrit-content-box'/>").appendTo($msg);
-    $filebox.append($("<div class='gerrit-file-title'/>").text(file));
-    for (var i = 0; i < comments.length; i++) {
-      $("<br/>").appendTo($filebox);
-      var comment = comments[i];
-      $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + lines[comment.line-1]).appendTo($filebox);
-      $("<div/>").text(comment.message).appendTo($filebox);
-    }
-  }
-
-  function formatFileComments(file, comments) {
-    if (reviewData.revisions[revId].files[file].content) {
-      doFormatFileComments(file, reviewData.revisions[revId].files[file].content, comments);
-    } else {
-      loadFileContent(reviewData._number, revId, file, function(resp) {
-        if (!resp.success) {
-          $msg.append(renderError("Cannot load file :'("));
-        } else {
-          reviewData.revisions[revId].files[file].content = resp.data;
-          doFormatFileComments(file, resp.data, comments);
-        }
-      });
-    }
-  }
-
-  function doFormatComments(comments) {
-    for (var file in comments) {
-      var fileComments = comments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
-      if (fileComments.length == 0) {
+    for (var i = 0; i < messageComments.fileComments.length; i++) {
+      var fileComment = messageComments.fileComments[i];
+      if (fileComment.lineComments.length == 0) {
         continue;
       }
-      formatFileComments(file, fileComments);
-    }
-  }
-
-  if (reviewData.revisions[revId].comments) {
-    doFormatComments(reviewData.revisions[revId].comments);
-  } else {
-    loadComments(reviewData._number, revId, function(resp) {
-      if (!resp.success) {
-        $msg.append(renderError("Cannot load comments :'("));
-      } else {
-        reviewData.revisions[revId].comments = resp.data;
-        doFormatComments(resp.data);
+      var $filebox = $("<div class='gerrit-content-box'/>").appendTo($msg);
+      $filebox.append($("<div class='gerrit-file-title'/>").text(fileComment.file));
+      for (var j = 0; j < fileComment.lineComments.length; j++) {
+        var comment = fileComment.lineComments[j];
+        $("<br/>").appendTo($filebox);
+        $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + comment.lineContent).appendTo($filebox);
+        $("<div/>").text(comment.comments.join("\n")).appendTo($filebox);
       }
-    });
+    }
   }
 }
 
-function guessGerritMessage($card, text, reviewData) {
+function loadMessageComments($card, text, reviewData, revId, callback) {
+  var gMsg = guessGerritMessage($card, text, reviewData.revisions[revId]._number, reviewData);
+
+  function loadFileComments(file, allComments) {
+    var deferred = $.Deferred();
+    loadAndCacheFileContent(reviewData, revId, file, function(resp) {
+      if (!resp.success) {
+        deferred.resolve(resp);
+      } else {
+        var fileComments = allComments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
+        var content = resp.data.split("\n");
+        var lineComments = [];
+        for (var i = 0; i < fileComments.length; i++) {
+          var fc = fileComments[i];
+          lineComments.push({id: fc.id, line: fc.line, lineContent: content[fc.line-1], comments: fc.message.split("\n")});
+        }
+        deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});
+      }
+    });
+    return deferred;
+  }
+
+  loadAndCacheComments(reviewData, revId, function(resp) {
+    if (!resp.success) {
+      callback(resp);
+      return;
+    }
+    var allComments = resp.data;
+    var deferreds = [];
+    for (var file in allComments) {
+      deferreds.push(loadFileComments(file, allComments));
+    }
+    $.when.apply($, deferreds).done(function() {
+      var resps = arguments;
+      var fileComments = [];
+      for (var i = 0; i < resps.length; i++) {
+        if (!resps[i].success) {
+          callback(resps[i]);
+          return;
+        } else {
+          fileComments.push(resps[i].data);
+        }
+      }
+      callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments}});
+    });
+
+    return {message: gMsg.message.split("\n")};
+  });
+}
+ 
+
+function guessGerritMessage($card, text, pid, reviewData) {
   // TODO: this tries to match a Gmail $card with a reviewData.messages.
   // Very fragile!  Surely there's a better way???
   var cardFrom = $("span.gD", $card).text();
@@ -731,6 +876,9 @@ function guessGerritMessage($card, text, reviewData) {
     var msg = reviewData.messages[i];
     if (!msg.author) {
       // Gerrit-generated messages (like merge failed) do not have an author
+      continue;
+    }
+    if (msg._revision_number != pid) {
       continue;
     }
     if ((cardFrom.indexOf(msg.author.name) >= 0 || 
@@ -757,6 +905,22 @@ function formatMergeFailed($card, $msg, text, reviewData) {
       $("<li/>").text($.trim(line.substring(1))).appendTo($ul);
     }
   }
+}
+
+function trimEmptyLines(lines) {
+  var start;
+  for (start = 0; start < lines.length; start++) {
+    if (lines[start].length > 0) {
+      break;
+    }
+  }
+  var end;
+  for (end = lines.length-1; end>=start; end--) {
+    if (lines[end].length > 0) {
+      break;
+    }
+  }
+  return lines.slice(start, end + 1);
 }
 
 var RE_PATCHSET = /Gerrit-PatchSet: (\d+)/;
