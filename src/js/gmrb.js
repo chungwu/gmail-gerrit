@@ -762,8 +762,10 @@ function formatComment($card, $msg, text, reviewData) {
   // the REST API entirely depends on the message having the same timestamp
   // as the comment, and also depends on the rather unreliable and fuzzy
   // matching from email message to reviewData.message.  By default, we extract
-  // from email body, because it's more efficient and maybe more reliable.
+  // load from REST API, since the message body formatting changes from release
+  // to release :-/
 
+  /*
   extractAndLoadMessageComments(reviewData, revId, text, function(resp) {
     if (!resp.success) {
       $msg.append(renderError("Failed to load comments :'("));
@@ -771,18 +773,15 @@ function formatComment($card, $msg, text, reviewData) {
       appendMessageComments(resp.data);
     }
   });
+  */
 
-  /*
   loadMessageComments($card, text, reviewData, revId, function(resp) {
     if (!resp.success) {
       $msg.append(renderError("Failed to load comments :'("));
     } else {
-      console.log("Loaded: ", resp.data);
-      $msg.append($("<h4>Loaded</h4>"));
       appendMessageComments(resp.data);
     }
   });
-  */
   
   function appendMessageComments(messageComments) {
     var $header = $("<div/>").appendTo($msg);
@@ -1106,12 +1105,14 @@ function extractDiffIdFromUrl(url) {
 function extractDiffId() {
   var $thread = $("div[role='main']");
   var $anchor = $("a[href*='" + gSettings.url + "']", $thread);
-  if ($anchor.length > 0) {
-    var url = $anchor.attr("href");
-    return extractDiffIdFromUrl(url);
-  } else {
-    return null;
+  for (var i = 0; i < $anchor.length; i++) {
+    var url = $($anchor[i]).attr("href");
+    var id = extractDiffIdFromUrl(url);
+    if (id) {
+      return id;
+    }
   }
+  return null;
 }
 
 function checkDiff() {
