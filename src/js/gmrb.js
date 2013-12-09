@@ -765,6 +765,10 @@ _RE_LINE = /^Line (\d+): (.*)$/
 
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
 
+function makeButton(text) {
+  return $("<span class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
+}
+
 function formatComment($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
   var revId = getRevisionIdByPatchNumber(reviewData, pid);
@@ -788,9 +792,10 @@ function formatComment($card, $msg, text, reviewData) {
   // to release :-/
 
   /*
+  var $commentsBox = $("<div/>").appendTo($msg);
   extractAndLoadMessageComments(reviewData, revId, text, function(resp) {
     if (!resp.success) {
-      $msg.append(renderError("Failed to load comments :'("));
+      $commentsBox.append(renderError("Failed to load comments :'("));
     } else {
       appendMessageComments(resp.data);
     }
@@ -799,14 +804,26 @@ function formatComment($card, $msg, text, reviewData) {
 
   loadMessageComments($card, text, reviewData, revId, function(resp) {
     if (!resp.success) {
-      $msg.append(renderError("Failed to load comments :'("));
+      $commentsBox.append(renderError("Failed to load comments :'("));
     } else {
       appendMessageComments(resp.data);
     }
   });
+
+  var $actions = $("<div class='gerrit-actions'/>").appendTo($msg);
+  var $reply = makeButton("Reply").appendTo($actions).click(function() {
+    $reply.hide();
+    $submit.show();
+    $submitApprove.show();
+    $replyBox.show().focus();
+  });
+  var $replyBox = $("<textarea class='gerrit-reply'/>").appendTo($actions).hide();
+  var $submit = makeButton("Submit Comments").appendTo($actions).hide();
+  var $submitApprove = makeButton("Submit Comments & Approve").appendTo($actions).hide();
+>>>>>>> Buttons for replying to comments
   
   function appendMessageComments(messageComments) {
-    var $header = $("<div/>").appendTo($msg);
+    var $header = $("<div/>").appendTo($commentsBox);
     for (var i = 0; i < messageComments.message.length; i++) {
       var ptext = messageComments.message[i];
       var $line = $(i == 0 ? "<div/>" : "<p/>").text(ptext);
@@ -827,7 +844,7 @@ function formatComment($card, $msg, text, reviewData) {
       if (fileComment.lineComments.length == 0) {
         continue;
       }
-      var $filebox = $("<div class='gerrit-content-box'/>").appendTo($msg);
+      var $filebox = $("<div class='gerrit-content-box'/>").appendTo($commentsBox);
       $filebox.append($("<div class='gerrit-file-title'/>").text(fileComment.file));
       for (var j = 0; j < fileComment.lineComments.length; j++) {
         var comment = fileComment.lineComments[j];

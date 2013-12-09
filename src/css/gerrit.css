@@ -140,3 +140,18 @@
 .gerrit-highlight-box p:last-child, .gerrit-content-box p:last-child {
   margin-bottom: 0;
 }
+
+.gerrit-actions {
+  margin-top: 25px;
+  padding: 10px;
+  border: 1px solid #d8d8d8;
+  background-color: #dfd;
+}
+
+textarea.gerrit-reply {
+  display: block;
+  width: 90%;
+  margin-bottom: 10px;
+  border: 1px solid #ccc;
+  padding: 10px;
+}
