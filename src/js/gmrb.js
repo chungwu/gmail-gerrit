@@ -303,6 +303,7 @@ function formatThread(reviewData) {
           reviewData = resp.data;
           numMessages = newNumMessages;
           doFormat();
+          renderBox(rbId, reviewData);
         }
       });
     } else {
