@@ -287,15 +287,36 @@ function formatThread(reviewData) {
     $(this).data("gerritMessage", true);
   });
 
-  function doFormat() {
+  var numMessages = $(".Bk", $thread).length;
+
+  function checkAndFormat() {
     if (!rbId || curId != rbId) {
       return;
     }
+    var newNumMessages = $(".Bk", $thread).length;
+    if (newNumMessages > numMessages) {
+      loadChange(rbId, function(resp) {
+        if (!resp.success) {
+          renderErrorBox(rbId, resp.err_msg);
+          return;
+        } else {
+          reviewData = resp.data;
+          numMessages = newNumMessages;
+          doFormat();
+        }
+      });
+    } else {
+      doFormat();
+    }
+  }
+
+  function doFormat() {
     $(".Bk", $thread).not(".gerrit-formatted").each(function() {
       formatCard($(this), reviewData);
     });
-    setTimeout(doFormat, 1000);
+    setTimeout(checkAndFormat, 1000);
   }
+
   doFormat();
 
   if (gSettings.email != reviewData.owner.email) {
