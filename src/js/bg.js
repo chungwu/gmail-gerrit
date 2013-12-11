@@ -18,6 +18,8 @@ function contentHandler(request, sender, callback) {
     return submitDiff(request.rbId, callback);
   } else if (request.type == "rebaseChange") {
     return rebaseChange(request.rbId, callback);
+  } else if (request.type == "submitComments") {
+    return submitComments(request.rbId, request.revId, request.review, callback);
   } else if (request.type == "approveSubmitDiff") {
     return approveSubmitDiff(request.rbId, callback);
   } else if (request.type == "settings") {
@@ -79,6 +81,12 @@ function approveSubmitDiff(rbId, callback) {
 function rebaseChange(rbId, callback) {
   var url = '/changes/' + rbId + '/rebase';
   ajax(url, callback, 'POST');
+  return true;
+}
+
+function submitComments(rbId, revId, review, callback) {
+  var url = '/changes/' + rbId + '/revisions/' + revId + '/review';
+  ajax(url, callback, 'POST', review);
   return true;
 }
 

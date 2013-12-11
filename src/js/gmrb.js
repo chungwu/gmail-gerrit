@@ -766,6 +766,56 @@ function makeButton(text) {
   return $("<span class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
 }
 
+function RespondWidget(teaser, buttons) {
+  this.$buttons = $(buttons.map(function($b) { return $b[0]; }));
+
+  this.$box = $("<div class='gerrit-actions'/>");
+  var self = this;
+  this.$teaser = makeButton(teaser).appendTo(this.$box).click(function() {
+    self.open(true);
+  });
+
+  this.$replyBox = $("<textarea class='gerrit-reply'/>").appendTo(this.$box).hide();
+  this.$content = $("<div class='gerrit-reply-content/>").appendTo(this.$box).hide();
+
+  this.$buttons.appendTo(this.$box);
+
+  this.close(true);
+}
+
+RespondWidget.prototype.open = function(focus) {
+  this.$teaser.hide();
+  this.$buttons.show();
+  this.$replyBox.show();
+  if (focus) {
+    this.$replyBox.focus();
+  }
+  this.$box.addClass("touched");
+};
+
+RespondWidget.prototype.close = function(clear) {
+  this.$buttons.hide();
+  this.$teaser.show();
+  this.$replyBox.hide();
+  if (clear) {
+    this.$replyBox.val("");
+    this.$content.text("");
+  } else {
+    var val = $this.replyBox.val();
+    if (val) {
+      this.$content.text($this.replyBox.val()).show();
+    }
+  }
+};
+
+RespondWidget.prototype.getText = function() {
+  return this.$replyBox.val();
+};
+
+RespondWidget.prototype.getWidget = function() {
+  return this.$box;
+};
+
 function formatComment($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
   var revId = getRevisionIdByPatchNumber(reviewData, pid);
@@ -810,17 +860,10 @@ function formatComment($card, $msg, text, reviewData) {
     }
   });
 
-  var $actions = $("<div class='gerrit-actions'/>").appendTo($msg);
-  var $reply = makeButton("Reply").appendTo($actions).click(function() {
-    $reply.hide();
-    $submit.show();
-    $submitApprove.show();
-    $replyBox.show().focus();
-  });
-  var $replyBox = $("<textarea class='gerrit-reply'/>").appendTo($actions).hide();
-  var $submit = makeButton("Submit Comments").appendTo($actions).hide();
-  var $submitApprove = makeButton("Submit Comments & Approve").appendTo($actions).hide();
->>>>>>> Buttons for replying to comments
+  var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+  var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+  var messageReplyWidget = new RespondWidget("Reply", [$submit, $submitApprove]);
+  messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
   
   function appendMessageComments(messageComments) {
     var $header = $("<div/>").appendTo($commentsBox);
@@ -1167,6 +1210,10 @@ function submitDiff(id, callback) {
 
 function rebaseChange(id, callback) {
   authenticatedSend({type: "rebaseChange", rbId: id}, callback);
+}
+
+function submitComments(id, revId, review, callback) {
+  authenticatedSend({type: "submitComments", rbId: id, revId: revId, review: review}, callback);
 }
 
 function rebaseSubmitChange(id, callback) {
