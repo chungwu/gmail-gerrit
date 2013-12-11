@@ -276,17 +276,6 @@ function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
   var curId = rbId;
 
-  $(".Bk", $thread).each(function() {
-    if ($(this).html().indexOf("gmail_quote") >= 0) {
-      // someone sent this email directly; don't format.
-      // TODO: we need a much better way of detecting this!
-      $(this).addClass("gerrit-formatted");
-      return;
-    }
-
-    $(this).data("gerritMessage", true);
-  });
-
   var numMessages = $(".Bk", $thread).length;
 
   function checkAndFormat() {
@@ -313,6 +302,14 @@ function formatThread(reviewData) {
 
   function doFormat() {
     $(".Bk", $thread).not(".gerrit-formatted").each(function() {
+
+      if ($(this).html().indexOf("gmail_quote") >= 0) {
+        // someone sent this email directly; don't format.
+        // TODO: we need a much better way of detecting this!
+        $(this).addClass("gerrit-formatted");
+        return;
+      }
+
       formatCard($(this), reviewData);
     });
     setTimeout(checkAndFormat, 1000);
@@ -802,6 +799,9 @@ function formatComment($card, $msg, text, reviewData) {
   });
   */
 
+  var $commentsBox = $("<div/>").appendTo($msg);
+  var lineReplyWidgets = [];
+
   loadMessageComments($card, text, reviewData, revId, function(resp) {
     if (!resp.success) {
       $commentsBox.append(renderError("Failed to load comments :'("));
@@ -850,14 +850,52 @@ function formatComment($card, $msg, text, reviewData) {
         var comment = fileComment.lineComments[j];
         $("<br/>").appendTo($filebox);
         $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + comment.lineContent).appendTo($filebox);
-        $("<div/>").text(comment.comments.join("\n")).appendTo($filebox);
+        for (var i = 0; i < comment.comments.length; i++) {
+          $("<div/>").text(comment.comments[i]).appendTo($filebox);
+        }
+        var lineReplyWidget = new RespondWidget("Reply", []);
+        lineReplyWidget.getWidget().appendTo($filebox);
+        lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
+        lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id});
       }
     }
+  }
+
+  function collectAndSubmitComments(approve) {
+    var review = {};
+    if (messageReplyWidget.getText().length > 0) {
+      review.message = messageReplyWidget.getText();
+    }
+    if (approve) {
+      review.labels = {'Code-Review': 2};
+    }
+    for (var i = 0; i < lineReplyWidgets.length; i++) {
+      var lw = lineReplyWidgets[i];
+      if (lw.widget.getText().length > 0) {
+        if (!("comments" in review)) {
+          review.comments = {};
+        }
+        if (!(lw.file in review.comments)) {
+          review.comments[lw.file] = [];
+        }
+        review.comments[lw.file].push({line: lw.line, message: lw.widget.getText(), in_reply_to: lw.parent});
+      }
+    }
+    console.log("REVIEW", review);
+    submitComments(reviewData._number, revId, review, function(resp) {
+      if (resp.success) {
+        for (var i = 0; i < lineReplyWidgets.length; i++) {
+          lineReplyWidgets[i].widget.close(true);
+        }
+        messageReplyWidget.close(true);
+      }
+      performActionCallback(reviewData._number, resp);
+    });
   }
 }
 
 function loadMessageComments($card, text, reviewData, revId, callback) {
-  var gMsg = guessGerritMessage($card, text, reviewData.revisions[revId]._number, reviewData);
+  var gMsg = undefined;
 
   function loadFileComments(file, allComments) {
     var deferred = $.Deferred();
@@ -884,6 +922,10 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
       return;
     }
     var allComments = resp.data;
+
+    gMsg = guessGerritMessage($card, text, revId, reviewData);
+    console.log("MATCHED", gMsg);
+
     var deferreds = [];
     for (var file in allComments) {
       deferreds.push(loadFileComments(file, allComments));
@@ -907,11 +949,14 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
 }
  
 
-function guessGerritMessage($card, text, pid, reviewData) {
+function guessGerritMessage($card, text, revId, reviewData) {
   // TODO: this tries to match a Gmail $card with a reviewData.messages.
   // Very fragile!  Surely there's a better way???
+  var pid = reviewData.revisions[revId]._number;
   var cardFrom = $("span.gD", $card).text();
-  for (var i = 0; i < reviewData.messages.length; i++) {
+  var allComments = reviewData.revisions[revId].comments;
+
+  for (var i = reviewData.messages.length-1; i >= 0; i--) {
     var msg = reviewData.messages[i];
     if (!msg.author) {
       // Gerrit-generated messages (like merge failed) do not have an author
@@ -920,13 +965,52 @@ function guessGerritMessage($card, text, pid, reviewData) {
     if (msg._revision_number != pid) {
       continue;
     }
-    if ((cardFrom.indexOf(msg.author.name) >= 0 || 
-         cardFrom.indexOf(msg.author.email) >= 0 ||
-         cardFrom.indexOf(msg.author.username) >= 0) && 
-        text.indexOf(msg.message) >= 0) {
-      return reviewData.messages[i];
+    if (text.indexOf(msg.message) < 0) {
+      continue;
     }
+    if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
+          cardFrom.indexOf(msg.author.email) >= 0 ||
+          cardFrom.indexOf(msg.author.username) >= 0)) {
+      continue;
+    }
+    if (allComments && !matchFileComments(msg)) {
+      continue;
+    }
+
+    return msg;
   }
+
+  function matchFileComments(msg) {
+    // Here's the idea: we basically want to make sure the message we are returning actually
+    // contains textual comments for the $card that we're looking to match to.  To do this,
+    // we reject message if it's created at the same time as a comment whose text cannot be
+    // found in the email text.  We're basically using the timestamp to join the message to
+    // the email message text.
+    function commentInText(comment) {
+      // We compare line by line, since white space at beginning / end of lines get
+      // messed up in gmail messages.
+      var lines = comment.message.split("\n");
+      for (var i = 0; i < lines.length; i++) {
+        var line = $.trim(lines[i]);
+        if (line.length > 0 && text.indexOf(line) < 0) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    for (var file in allComments) {    
+      var comments = allComments[file];
+      for (var c = 0; c < comments.length; c++) {
+        var comment = comments[c];
+        if (comment.author.email == msg.author.email && comment.updated == msg.date && !commentInText(comment)) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
   return undefined;
 }
 
