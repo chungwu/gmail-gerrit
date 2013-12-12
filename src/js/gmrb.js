@@ -115,11 +115,11 @@ function renderBox(id, data) {
     }
   }
 
-  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: gSettings.url});
+  var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: gSettings.url}).appendTo($sideBox);
 
   var $info = $.tmpl("infoBox", {
     diffId: id, reviewers: reviewers
-  });
+  }).appendTo($sideBox);
 
   var $status = $(".status", $header);
   $(".action-button", $info).hide();
@@ -167,9 +167,6 @@ function renderBox(id, data) {
       rebaseChange(id, actionButtonCallback);
     }
   });  
-
-  $sideBox.append($header);
-  $sideBox.append($info);
 }
 
 function renderChange(id) {
