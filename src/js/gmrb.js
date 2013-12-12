@@ -81,7 +81,6 @@ function extractReviewers(data) {
 function performActionCallback(id, resp) {
   if (!resp.success) {
     renderErrorBox(id, resp.err_msg);
-    alert ("ERROR: " + resp.err_msg);
   }
   loadChange(id, function(resp) {
     if (!resp.success) {
@@ -413,6 +412,47 @@ function renderRevisionDiff(reviewData, revId, baseId) {
     renderFileBox(reviewData, revId, file, baseId).appendTo($box);
   }
 
+  var $comment = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+  var $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+  var replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
+  replyWidget.getWidget().addClass("primary").appendTo($box);
+
+  $box.on("dblclick", ".gerrit-commentable", function() {
+    replyWidget.open(false);
+  });
+
+  function collectAndSubmitComments(approve) {
+    var review = {};
+    if (replyWidget.getText().length > 0) {
+      review.message = replyWidget.getText();
+    }
+    if (approve) {
+      review.labels = {'Code-Review': 2};
+    }
+    $(".gerrit-reply-box.inlined textarea.gerrit-reply", $box).each(function() {
+      var comment = $.trim($(this).val());
+      if (comment.length == 0) {
+        return;
+      }
+      var file = $(this).data("file");
+      if (!("comments" in review)) {
+        review.comments = {};
+      }
+      if (!(file in review.comments)) {
+        review.comments[file] = [];
+      }
+      review.comments[file].push({line: $(this).data("line"), side: $(this).data("side"), message: comment});
+    });
+
+    submitComments(reviewData._number, revId, review, function(resp) {
+      if (resp.success) {
+        $(".gerrit-reply-box", $box).detach();
+        replyWidget.close(true);
+      }
+      performActionCallback(reviewData._number, resp);
+    });
+  }
+
   return $container;
 }
 
@@ -422,7 +462,7 @@ function renderFileBox(reviewData, revId, file, baseId) {
 
   loadDiff(reviewData._number, revId, file, baseId, function(resp) {
     if (resp.success) {
-      $filebox.append(appendFileDiff($filebox, resp.data));
+      $filebox.append(appendFileDiff($filebox, file, resp.data));
     } else {
       $filebox.append($("<div class='gerrit-error'/>").text("Error loading diff :'("));
     }
@@ -430,7 +470,7 @@ function renderFileBox(reviewData, revId, file, baseId) {
   return $filebox;
 }
 
-function appendFileDiff($box, data) {
+function appendFileDiff($box, file, data) {
   if (!data.diff_header || data.diff_header.length == 0) {
     // There's actually no difference!  Ignore this file entirely
     var $parent = $box.parent();
@@ -494,15 +534,28 @@ function appendFileDiff($box, data) {
   $box.append(renderLine(data.diff_header[data.diff_header.length-2]).addClass("gerrit-old-line"));
   $box.append(renderLine(data.diff_header[data.diff_header.length-1]).addClass("gerrit-new-line"));
 
-  function appendDiffLinesSide(lines, edits, type) {
+  function appendDiffLinesSide(lines, edits, type, lineStart) {
+    function makeCommentable($line, num) {
+      $line.addClass("gerrit-commentable").dblclick(function() {
+        var $replyBox = $("<div class='gerrit-reply-box touched inlined'/>");
+        var $textBox = $("<textarea class='gerrit-reply'/>")
+          .data({line: num+lineStart, file:file, side: type == "old" ? "PARENT" : "REVISION"})
+          .appendTo($replyBox);
+        $replyBox.insertAfter($line);
+        $textBox.focus();
+      });
+    }
+
     if (edits) {
       var segs = segmentEdits(lines, edits);
       for (var i = 0; i < segs.length; i++) {
-        $box.append(renderLine(segs[i], type));
+        var $line = renderLine(segs[i], type).appendTo($box);
+        makeCommentable($line, i);
       }
     } else {
       for (var i = 0; i < lines.length; i++) {
-        $box.append(renderLine([[lines[i], true]], type));
+        var $line = renderLine([[lines[i], true]], type).appendTo($box);
+        makeCommentable($line, i);
       }
     }
   }
@@ -545,12 +598,12 @@ function appendFileDiff($box, data) {
       }
 
       if ("a" in section) {
-        appendDiffLinesSide(section.a, section.edit_a, "old");
+        appendDiffLinesSide(section.a, section.edit_a, "old", aLine);
         aLine += section.a.length;
       }
 
       if ("b" in section) {
-        appendDiffLinesSide(section.b, section.edit_b, "new");
+        appendDiffLinesSide(section.b, section.edit_b, "new", bLine);
         bLine += section.b.length;
       }
 
@@ -760,16 +813,27 @@ _RE_LINE = /^Line (\d+): (.*)$/
 
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
 
-function makeButton(text) {
-  return $("<span class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
+function makeButton(text, small) {
+  var $button = $("<span class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
+  if (small) {
+    $button.addClass("gerrit-button-small");
+  }
+  return $button;
 }
 
-function RespondWidget(teaser, buttons) {
-  this.$buttons = $(buttons.map(function($b) { return $b[0]; }));
-
-  this.$box = $("<div class='gerrit-actions'/>");
+function RespondWidget($teaserButton, buttons) {
   var self = this;
-  this.$teaser = makeButton(teaser).appendTo(this.$box).click(function() {
+  this.$buttons = $("<div/>");
+  buttons.map(function($b) { $b.appendTo(self.$buttons); });
+  if (buttons.length > 0) {
+    this.$buttons.addClass("action-buttons");
+  }
+
+  this.$box = $("<div class='gerrit-reply-box'/>");
+
+  this.$teaser = $("<div/>").appendTo(this.$box);
+
+  $teaserButton.appendTo(this.$teaser).click(function() {
     self.open(true);
   });
 
@@ -860,7 +924,7 @@ function formatComment($card, $msg, text, reviewData) {
 
   var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
   var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-  var messageReplyWidget = new RespondWidget("Reply", [$submit, $submitApprove]);
+  var messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
   
   function appendMessageComments(messageComments) {
@@ -891,10 +955,10 @@ function formatComment($card, $msg, text, reviewData) {
         var comment = fileComment.lineComments[j];
         $("<br/>").appendTo($filebox);
         $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + comment.lineContent).appendTo($filebox);
-        for (var i = 0; i < comment.comments.length; i++) {
-          $("<div/>").text(comment.comments[i]).appendTo($filebox);
+        for (var k = 0; k < comment.comments.length; k++) {
+          $("<div/>").text(comment.comments[k]).appendTo($filebox);
         }
-        var lineReplyWidget = new RespondWidget("Reply", []);
+        var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
         lineReplyWidget.getWidget().appendTo($filebox);
         lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
         lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id});
@@ -989,6 +1053,9 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
   });
 }
  
+function crunch(string) {
+  return $.trim(string.replace(/\s+/g, " "));
+}
 
 function guessGerritMessage($card, text, revId, reviewData) {
   // TODO: this tries to match a Gmail $card with a reviewData.messages.
@@ -997,6 +1064,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
   var cardFrom = $("span.gD", $card).text();
   var allComments = reviewData.revisions[revId].comments;
 
+  var textCrunched = crunch(text);
   for (var i = reviewData.messages.length-1; i >= 0; i--) {
     var msg = reviewData.messages[i];
     if (!msg.author) {
@@ -1006,7 +1074,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
     if (msg._revision_number != pid) {
       continue;
     }
-    if (text.indexOf(msg.message) < 0) {
+    if (textCrunched.indexOf(crunch(msg.message)) < 0) {
       continue;
     }
     if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
@@ -1027,24 +1095,11 @@ function guessGerritMessage($card, text, revId, reviewData) {
     // we reject message if it's created at the same time as a comment whose text cannot be
     // found in the email text.  We're basically using the timestamp to join the message to
     // the email message text.
-    function commentInText(comment) {
-      // We compare line by line, since white space at beginning / end of lines get
-      // messed up in gmail messages.
-      var lines = comment.message.split("\n");
-      for (var i = 0; i < lines.length; i++) {
-        var line = $.trim(lines[i]);
-        if (line.length > 0 && text.indexOf(line) < 0) {
-          return false;
-        }
-      }
-      return true;
-    }
-
     for (var file in allComments) {    
       var comments = allComments[file];
       for (var c = 0; c < comments.length; c++) {
         var comment = comments[c];
-        if (comment.author.email == msg.author.email && comment.updated == msg.date && !commentInText(comment)) {
+        if (comment.author.email == msg.author.email && comment.updated == msg.date && textCrunched.indexOf(crunch(comment.message)) < 0) {
           return false;
         }
       }
@@ -1296,7 +1351,7 @@ function checkDiff() {
 
 function handleKeyPress(e) {
   var $target = $(e.target);
-  if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input") {
+  if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input" || $target.prop("tagName").toLowerCase() == "textarea") {
     return;
   }
   if (rbId) {

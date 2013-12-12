@@ -32,6 +32,13 @@
   text-decoration: none;
 }
 
+.gerrit-button-small {
+  font-size: 9px !important;
+  padding: 0 !important;
+  height: 16px !important;
+  line-height: 16px !important;
+}
+
 .gerrit-box .status {
   color: #555;
 }
@@ -145,25 +152,34 @@
   margin-top: 0;
 }
 
-.gerrit-actions {
-  padding: 10px;
+.gerrit-reply-box {
   margin-top: 10px;
 }
 
-.gerrit-actions.primary {
+.gerrit-reply-box.primary {
   margin-top: 25px;  
   border-top: 1px solid #d8d8d8;
+  padding-top: 10px;
 }
 
-.gerrit-actions.touched {
-  background-color: #dfd;
+.gerrit-reply-box.inlined {
+  margin-top: 0;
+}
+
+.gerrit-reply-box .action-buttons {
+  margin-top: 10px;
+}
+
+.gerrit-reply-box.touched {
+  padding: 10px;
+  background-color: #FAEECA;
   border: 1px solid #d8d8d8;
 }
 
 textarea.gerrit-reply {
   display: block;
   width: 90%;
-  margin-bottom: 10px;
+  margin: 0;
   border: 1px solid #ccc;
   padding: 10px;
 }
