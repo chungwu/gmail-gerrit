@@ -363,23 +363,21 @@ function formatNewChange($card, $msg, text, reviewData) {
   var $header = $("<div class='gerrit-highlight-box'/>").appendTo($msg);
   var revision = reviewData.revisions[revId];
   var message = extractCommitMessage(revision.commit);
-  $header.append($("<div class='gerrit-header'/>").text(revision.commit.subject));
-  if (message) {
-    $header.append($("<p/>").text(message));
+  var messageLines = message.split("\n");
+  for (var i = 0; i < messageLines.length; i++) {
+    var $line = $("<p/>").text(messageLines[i]).appendTo($header);
+    if (i == 0) {
+      $line.addClass("gerrit-header");
+    }
   }
 
   $msg.append(renderRevisionDiff(reviewData, revId, null));
 }
 
 function extractCommitMessage(commit) {
-  var subject = commit.subject;
   var message = commit.message;
   if (!message) {
     return undefined;
-  }
-  var subjectIndex = message.indexOf(subject);
-  if (subjectIndex >= 0) {
-    message = message.substring(subjectIndex + subject.length, message.length);
   }
   var changeIndex = message.indexOf("Change-Id: ");
   if (changeIndex >= 0) {
@@ -869,7 +867,7 @@ function formatComment($card, $msg, text, reviewData) {
     var $header = $("<div/>").appendTo($commentsBox);
     for (var i = 0; i < messageComments.message.length; i++) {
       var ptext = messageComments.message[i];
-      var $line = $(i == 0 ? "<div/>" : "<p/>").text(ptext);
+      var $line = $("<p/>").text(ptext);
       if (i == 0) {
         $line.addClass("gerrit-header");
       }
