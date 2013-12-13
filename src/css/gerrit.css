@@ -28,15 +28,20 @@
   margin-bottom: 10px;
 }
 
-.gerrit-box a.gerrit-button {
-  text-decoration: none;
-}
-
 .gerrit-button-small {
   font-size: 9px !important;
   padding: 0 !important;
   height: 16px !important;
   line-height: 16px !important;
+}
+
+a.gerrit-button {
+  text-decoration: none;
+  color: #444 !important;
+}
+
+a.gerrit-button:hover {
+  text-decoration: none;
 }
 
 .gerrit-box .status {

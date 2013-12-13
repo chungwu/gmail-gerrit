@@ -811,7 +811,7 @@ _RE_LINE = /^Line (\d+): (.*)$/
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
 
 function makeButton(text, small) {
-  var $button = $("<span class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
+  var $button = $("<a href='javascript:void 0;' class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
   if (small) {
     $button.addClass("gerrit-button-small");
   }
@@ -859,6 +859,7 @@ RespondWidget.prototype.close = function(clear) {
   if (clear) {
     this.$replyBox.val("");
     this.$content.text("");
+    this.$box.removeClass("touched");
   } else {
     var val = $this.replyBox.val();
     if (val) {
