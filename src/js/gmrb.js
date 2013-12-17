@@ -81,14 +81,15 @@ function extractReviewers(data) {
 function performActionCallback(id, resp) {
   if (!resp.success) {
     renderErrorBox(id, resp.err_msg);
+  } else {
+    loadChange(id, function(resp) {
+      if (!resp.success) {
+        renderErrorBox(id, resp.err_msg);
+        return;
+      }
+      renderBox(id, resp.data);
+    });
   }
-  loadChange(id, function(resp) {
-    if (!resp.success) {
-      renderErrorBox(id, resp.err_msg);
-      return;
-    }
-    renderBox(id, resp.data);
-  });
 }
 
 function renderErrorBox(id, err_msg) {
@@ -127,6 +128,9 @@ function renderBox(id, data) {
     $status.addClass("green");
     if (isOwner) {
       $(".submit-button", $info).show();
+    }
+  } else if (status == "Merge Pending") {
+    if (isOwner) {
       $(".rebase-button", $info).show();
       $(".rebase-submit-button", $info).show();
     }
@@ -314,8 +318,9 @@ function formatThread(reviewData) {
   doFormat();
 
   if (gSettings.email != reviewData.owner.email) {
-    // Not my commit, so show me the diff (but just once)
-    $($(".show-diffs-button", $thread)[0]).click();
+    // Not my commit, so show me the last diff
+    var $diffs = $(".show-diffs-button", $thread);
+    $($diffs[$diffs.length-1]).click();
   }
 }
 
@@ -534,12 +539,17 @@ function appendFileDiff($box, file, data) {
   function appendDiffLinesSide(lines, edits, type, lineStart) {
     function makeCommentable($line, num) {
       $line.addClass("gerrit-commentable").dblclick(function() {
-        var $replyBox = $("<div class='gerrit-reply-box touched inlined'/>");
-        var $textBox = $("<textarea class='gerrit-reply'/>")
-          .data({line: num+lineStart, file:file, side: type == "old" ? "PARENT" : "REVISION"})
-          .appendTo($replyBox);
-        $replyBox.insertAfter($line);
-        $textBox.focus();
+        if ($line.data("gerrit-textBox")) {
+          $line.data("gerrit-textBox").focus();
+        } else {
+          var $replyBox = $("<div class='gerrit-reply-box touched inlined'/>");
+          var $textBox = $("<textarea class='gerrit-reply'/>")
+            .data({line: num+lineStart, file:file, side: type == "old" ? "PARENT" : "REVISION"})
+            .appendTo($replyBox);
+          $replyBox.insertAfter($line);
+          $textBox.focus();
+          $line.data("gerrit-textBox", $textBox);
+        }
       });
     }
 
@@ -1252,7 +1262,15 @@ function commentDiff(id, approve, comment, callback) {
 }
 
 function approveSubmitDiff(id, callback) {
-  authenticatedSend({type: "approveSubmitDiff", rbId: id}, callback);
+  function submitCallback(resp) {
+    if (!resp.success && resp.status == 409) {
+      console.log("Submit failed; automatically rebasing...");
+      rebaseSubmitChange(id, callback);
+    } else {
+      callback(resp);
+    }
+  }
+  authenticatedSend({type: "approveSubmitDiff", rbId: id}, submitCallback);
 }
 
 function submitDiff(id, callback) {
