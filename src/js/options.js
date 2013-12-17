@@ -7,6 +7,9 @@ function save() {
   if (!gmail) {
     return false;
   }
+
+  var context = _validateInt($("#context-lines").val());
+
   // var user = $("#user").val();
   // var password = $("#password").val();
   // if (!user || !password) {
@@ -16,11 +19,12 @@ function save() {
 
   localStorage['host'] = url;
   localStorage['gmail'] = gmail;
+  localStorage['contextLines'] = context;
   
   // localStorage['user'] = user;
   // localStorage['password'] = password;
 
-  Alert("Saved! You should reload your Gmail tabs to reflect the changes.");
+  alert("Saved! You should reload your Gmail tabs to reflect the changes.");
   return true;
 }
 
@@ -30,6 +34,14 @@ function _validateEmail(email) {
     return false;
   }
   return email;
+}
+
+function _validateInt(num) {
+  if (!num || num.length == 0) {
+    return undefined;
+  } else {
+    return parseInt(num);
+  }
 }
 
 function _validateUrl(url) {
@@ -49,6 +61,7 @@ function load() {
   //$("#user").val(localStorage['user']);
   //$("#password").val(localStorage['password']);
   $("#gmail").val(localStorage['gmail']);
+  $("#context-lines").val(localStorage['contextLines'] || "3");
 }
 
 function init() {

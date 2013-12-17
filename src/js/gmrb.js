@@ -484,7 +484,7 @@ function appendFileDiff($box, file, data) {
     return;
   }
 
-  var contextLines = 3;
+  var contextLines = gSettings.contextLines || 3;
   var aLine = 1, bLine = 1;
   var curSection = 0;
   
@@ -1299,6 +1299,7 @@ function rebaseSubmitChange(id, callback) {
 function initialize() {
   loadSettings(function(settings) {
     gSettings.url = settings.url;
+    gSettings.contextLines = settings.contextLines;
 
     if (!gSettings.url) {
       // No URL set; forget it

@@ -187,7 +187,8 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
 
   // NORMAL error
   function onError(xhr, textStatus, errorThrown) {
-    callback({success: false, status: xhr.status, err_msg: xhr.responseText});
+    err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
+    callback({success: false, status: xhr.status, err_msg: err_msg});
   }
 
   // DIGEST error
@@ -321,7 +322,7 @@ function authenticate(callback) {
 }
 
 function loadSettings(callback) {
-  callback({url: gerritUrl(), gmail: gerritGmail(), user: user(), hasPassword: password() != ''});
+  callback({url: gerritUrl(), gmail: gerritGmail(), contextLines: localStorage['contextLines'] || 3, user: user(), hasPassword: password() != ''});
 }
 
 function getPopup() {

@@ -6,7 +6,7 @@ a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
 .form-row { margin: 10px 0; }
 .form-note { font-size: 10px; color: #888; }
 </style>
-<script type="text/javascript" src="js/jquery.js"></script>
+<script type="text/javascript" src="js/jquery-1.8.3-min.js"></script>
 <script type="text/javascript" src="js/options.js"></script>
 </head>
 <body>
@@ -19,6 +19,7 @@ When you're viewing an email from Gerrit,
 </ul>
 </p>
 <form class="options-form">
+  <h3>Settings</h3>
   <div class="form-row">
     <div>
       Gerrit URL: <input id="url" style="width:400px"/>
@@ -43,6 +44,16 @@ When you're viewing an email from Gerrit,
     </div>
     <div class="form-note">The Gmail address that you want to enable the Gerrit plugin for.</div>
   </div>
+
+  <h3>Display</h3>
+
+  <div class="form-row">
+    <div>
+      Context Lines: <input id="context-lines" style="width:400px"/>
+    </div>
+    <div class="form-note">Number of context lines to display when showing diffs</div>
+  </div>
+
   <div>
     <button action="submit">Save</button>
   </div>
