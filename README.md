@@ -41,3 +41,10 @@ In the Options page, a few things to set up:
 * **Gerrit URL**: The URL of your Gerrit instance.  This must be set to enable the Gerrit extension.
 * **Enabled Gmail Account**: The Gmail account that you use to recieve Gerrit emails.  This is in case you have multiple Gmail accounts and don't want to enable the Gerrit extension for all of them.
 * **Context Lines**: Number of context lines to display in unified diffs.
+
+Authentication
+--------------
+
+Right now the extension is using the same authentication you're using to use the Gerrit webapp; it's relying on the same cookies being sent and it's querying eand extracting the XSRF token from the Gerrit HTML itself.  That means that to use the extension, you need to be logged into the Gerrit webapp as well.  I think this is reasonable, since the extension is not meant to replace the Gerrit webapp, just complement it.
+
+It is future work to use HTTP-Digest authentication instead.
