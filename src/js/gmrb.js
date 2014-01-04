@@ -77,18 +77,21 @@ function extractReviewers(data) {
   return reviewers;
 }
 
+function loadAndRenderBox(id) {
+  loadChange(id, function(resp) {
+    if (!resp.success) {
+      renderErrorBox(id, resp.err_msg);
+    } else {
+      renderBox(id, resp.data);
+    }
+  });
+}
 
 function performActionCallback(id, resp) {
   if (!resp.success) {
     renderErrorBox(id, resp.err_msg);
   } else {
-    loadChange(id, function(resp) {
-      if (!resp.success) {
-        renderErrorBox(id, resp.err_msg);
-        return;
-      }
-      renderBox(id, resp.data);
-    });
+    loadAndRenderBox(id);
   }
 }
 
@@ -98,7 +101,10 @@ function renderErrorBox(id, err_msg) {
   $(".status", $header).addClass("red");
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
   if (!gSettings.auth) {
-    $("<a href='" + gSettings.url + "' class='gerrit-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Login</span>").appendTo($sideBox);
+    makeButton("Login", false, gSettings.url).appendTo($sideBox);
+    var $reloadButton = makeButton("Try again").appendTo($sideBox).click(function() {
+      renderChange(id);
+    });
   }
 }
 
@@ -128,6 +134,10 @@ function renderBox(id, data) {
     $status.addClass("green");
     if (isOwner) {
       $(".submit-button", $info).show();
+      if (!data.mergeable) {
+        $(".rebase-button", $info).show();
+        $(".rebase-submit-button", $info).show();
+      }
     }
   } else if (status == "Merge Pending") {
     if (isOwner) {
@@ -200,6 +210,8 @@ function authenticatedSend(msg, callback) {
       showNeedLogin();
       gSettings.auth = false;
     }
+    console.log("Function call:", msg);
+    console.log("Result:", resp);
     callback(resp);
   }
   if (!gSettings.auth) {
@@ -820,8 +832,9 @@ _RE_LINE = /^Line (\d+): (.*)$/
 
 _RE_COMMENT_COUNT = /^\(\d+ comments?\)/
 
-function makeButton(text, small) {
-  var $button = $("<a href='javascript:void 0;' class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
+function makeButton(text, small, href) {
+  var href = href || "javascript: void 0;";
+  var $button = $("<a href='" + href + "' class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").text(text);
   if (small) {
     $button.addClass("gerrit-button-small");
   }

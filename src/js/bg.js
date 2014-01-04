@@ -187,8 +187,20 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
 
   // NORMAL error
   function onError(xhr, textStatus, errorThrown) {
-    err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
-    callback({success: false, status: xhr.status, err_msg: err_msg});
+    if (xhr.status == 403) {
+      console.log("403!  Try getting auth again");
+      initializeAuth(function(resp) {
+        if (!resp.success) {
+          callback({success: false, status: xhr.status, err_msg: xhr.responseText});
+        } else {
+          console.log("Re-issuing ajax call using new token...");
+          ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType);
+        }
+      });
+    } else {
+      err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
+      callback({success: false, status: xhr.status, err_msg: err_msg});
+    }
   }
 
   // DIGEST error
