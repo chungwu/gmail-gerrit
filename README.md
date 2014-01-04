@@ -36,6 +36,8 @@ approving a change means Code-Review: +2.  It does not work with any custom labe
 Setup
 -----
 
+Once you've installed the extension, in Chrome, go to Menu | Tools | Extensions, and next to the "Gerrit Plugin for Gmail" extension, click on the "Options" link.
+
 In the Options page, a few things to set up:
 
 * **Gerrit URL**: The URL of your Gerrit instance.  This must be set to enable the Gerrit extension.
