@@ -22,7 +22,7 @@ Specifically,
   * Approve, submit, rebase from Gmail.
 
 Requirements
-============
+------------
 
 * Gerrit 2.8+, which contains most of the REST API endpoints necessary for the extension.
 * Your email templates must include the following, in the footer or elsewhere:
@@ -34,10 +34,10 @@ Right now, the extension is also very dumb and assumes a pretty much out-of-the-
 approving a change means Code-Review: +2.  It does not work with any custom labels, etc.
 
 Setup
-=====
+-----
 
 In the Options page, a few things to set up:
 
-* *Gerrit URL*: The URL of your Gerrit instance.  This must be set to enable the Gerrit extension.
-* *Enabled Gmail Account*: The Gmail account that you use to recieve Gerrit emails.  This is in case you have multiple Gmail accounts and don't want to enable the Gerrit extension for all of them.
-* *Context Lines*: Number of context lines to display in unified diffs.
+* **Gerrit URL**: The URL of your Gerrit instance.  This must be set to enable the Gerrit extension.
+* **Enabled Gmail Account**: The Gmail account that you use to recieve Gerrit emails.  This is in case you have multiple Gmail accounts and don't want to enable the Gerrit extension for all of them.
+* **Context Lines**: Number of context lines to display in unified diffs.
