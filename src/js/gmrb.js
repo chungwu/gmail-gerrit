@@ -550,6 +550,11 @@ function appendFileDiff($box, file, data) {
 
   function appendDiffLinesSide(lines, edits, type, lineStart) {
     function makeCommentable($line, num) {
+      if (type == "old") {
+        // Since we diff against the "last commented patch set", we're not really sure how
+        // to comment on the "old" line, so we don't allow it
+        return;
+      }
       $line.addClass("gerrit-commentable").dblclick(function() {
         if ($line.data("gerrit-textBox")) {
           $line.data("gerrit-textBox").focus();
@@ -1034,7 +1039,8 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
         var lineComments = [];
         for (var i = 0; i < fileComments.length; i++) {
           var fc = fileComments[i];
-          lineComments.push({id: fc.id, line: fc.line, lineContent: content[fc.line-1], comments: fc.message.split("\n")});
+          var lineContent = fc.side == "PARENT" ? "(unavailable...)" : content[fc.line-1];
+          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n")});
         }
         deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});
       }
