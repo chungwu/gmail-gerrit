@@ -1,6 +1,6 @@
 var gSettings = {};
 
-var rbId = null;
+var changeId = null;
 var re_rgid = new RegExp(".*/(\\d+)$");
 
 var infoBoxHeader = (
@@ -188,12 +188,12 @@ function renderChange(id) {
   $sideBox.empty().prependTo($sidebarBoxes);
 
   function callback(resp) {
-    console.log("Loaded rb", resp);
+    console.log("Loaded change", resp);
     if (!resp.success) {
       renderErrorBox(id, resp.err_msg);
       return;
     }
-    rbId = id;
+    changeId = id;
     var data = resp.data;
 
     renderBox(id, data);
@@ -201,7 +201,7 @@ function renderChange(id) {
     formatThread(data);
   }
 
-  authenticatedSend({type: "loadChange", rbId: id}, callback);
+  authenticatedSend({type: "loadChange", id: id}, callback);
 }
 
 function authenticatedSend(msg, callback) {
@@ -231,34 +231,34 @@ function authenticatedSend(msg, callback) {
 }
 
 function loadChange(id, callback) {
-  authenticatedSend({type: "loadChange", rbId: id}, callback);
+  authenticatedSend({type: "loadChange", id: id}, callback);
 }
 
-function loadFiles(id, revisionId, callback) {
-  authenticatedSend({type: "loadFiles", rbId: id, revisionId: revisionId}, callback);
+function loadFiles(id, revId, callback) {
+  authenticatedSend({type: "loadFiles", id: id, revId: revId}, callback);
 }
 
-function loadDiff(id, revisionId, file, baseId, callback) {
-  authenticatedSend({type: "loadDiff", rbId: id, revisionId: revisionId, file: file, baseId: baseId}, callback);
+function loadDiff(id, revId, file, baseId, callback) {
+  authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId}, callback);
 }
 
-function loadAndCacheComments(reviewData, revisionId, callback) {
-  if (reviewData.revisions[revisionId].comments) {
-    callback({success: true, data: reviewData.revisions[revisionId].comments});
+function loadAndCacheComments(reviewData, revId, callback) {
+  if (reviewData.revisions[revId].comments) {
+    callback({success: true, data: reviewData.revisions[revId].comments});
   } else {
-    loadComments(reviewData._number, revisionId, function(resp) {
+    loadComments(reviewData._number, revId, function(resp) {
       if (!resp.success) {
         callback(resp);
       } else {
-        reviewData.revisions[revisionId].comments = resp.data;
+        reviewData.revisions[revId].comments = resp.data;
         callback(resp);
       }
     });
   }
 }
 
-function loadComments(id, revisionId, callback) {
-  authenticatedSend({type: "loadComments", rbId: id, revisionId: revisionId}, callback);
+function loadComments(id, revId, callback) {
+  authenticatedSend({type: "loadComments", id: id, revId: revId}, callback);
 }
 
 function loadAndCacheFileContent(reviewData, revId, file, callback) {
@@ -276,8 +276,8 @@ function loadAndCacheFileContent(reviewData, revId, file, callback) {
   }
 }
 
-function loadFileContent(id, revisionId, file, callback) {
-  authenticatedSend({type: "loadFileContent", rbId: id, revisionId: revisionId, file: file}, callback);
+function loadFileContent(id, revId, file, callback) {
+  authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file}, callback);
 }
 
 function renderError(text) {
@@ -286,25 +286,25 @@ function renderError(text) {
 
 function formatThread(reviewData) {
   var $thread = $("div[role='main'] .nH.if");
-  var curId = rbId;
+  var curId = changeId;
 
   var numMessages = $(".Bk", $thread).length;
 
   function checkAndFormat() {
-    if (!rbId || curId != rbId) {
+    if (!changeId || curId != changeId) {
       return;
     }
     var newNumMessages = $(".Bk", $thread).length;
     if (newNumMessages > numMessages) {
-      loadChange(rbId, function(resp) {
+      loadChange(changeId, function(resp) {
         if (!resp.success) {
-          renderErrorBox(rbId, resp.err_msg);
+          renderErrorBox(changeId, resp.err_msg);
           return;
         } else {
           reviewData = resp.data;
           numMessages = newNumMessages;
           doFormat();
-          renderBox(rbId, reviewData);
+          renderBox(changeId, reviewData);
         }
       });
     } else {
@@ -1229,7 +1229,7 @@ function reviewStatus(reviewData) {
 }
 
 function clearDiff() {
-  rbId = null;
+  changeId = null;
   $sideBox.detach();
   hidePageAction();
 }
@@ -1266,7 +1266,7 @@ function authenticate(callback) {
 }
 
 function viewDiff(id) {
-  chrome.runtime.sendMessage({type: "viewDiff", rbId: id});  
+  chrome.runtime.sendMessage({type: "viewDiff", id: id});  
 }
 
 function commentDiff(id, approve, comment, callback) {
@@ -1277,7 +1277,7 @@ function commentDiff(id, approve, comment, callback) {
       return;
     }
   }
-  authenticatedSend({type: "commentDiff", rbId: id, approve: approve, comment: commentText}, callback);
+  authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText}, callback);
 }
 
 function approveSubmitDiff(id, callback) {
@@ -1289,19 +1289,19 @@ function approveSubmitDiff(id, callback) {
       callback(resp);
     }
   }
-  authenticatedSend({type: "approveSubmitDiff", rbId: id}, submitCallback);
+  authenticatedSend({type: "approveSubmitDiff", id: id}, submitCallback);
 }
 
 function submitDiff(id, callback) {
-  authenticatedSend({type: "submitDiff", rbId: id}, callback);
+  authenticatedSend({type: "submitDiff", id: id}, callback);
 }
 
 function rebaseChange(id, callback) {
-  authenticatedSend({type: "rebaseChange", rbId: id}, callback);
+  authenticatedSend({type: "rebaseChange", id: id}, callback);
 }
 
 function submitComments(id, revId, review, callback) {
-  authenticatedSend({type: "submitComments", rbId: id, revId: revId, review: review}, callback);
+  authenticatedSend({type: "submitComments", id: id, revId: revId, review: review}, callback);
 }
 
 function rebaseSubmitChange(id, callback) {
@@ -1309,7 +1309,7 @@ function rebaseSubmitChange(id, callback) {
     if (!resp.success) {
       callback(resp);
     } else {
-      authenticatedSend({type: "submitDiff", rbId: id}, callback);
+      authenticatedSend({type: "submitDiff", id: id}, callback);
     }
   }
   rebaseChange(id, rebaseCallback);
@@ -1376,8 +1376,8 @@ function extractDiffId() {
 
 function checkDiff() {
   var id = extractDiffId();
-  console.log("Found rb", id);
-  if (id != rbId) {
+  console.log("Found change", id);
+  if (id != changeId) {
     clearDiff();
     if (id) {
       renderChange(id);
@@ -1390,11 +1390,11 @@ function handleKeyPress(e) {
   if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input" || $target.prop("tagName").toLowerCase() == "textarea") {
     return;
   }
-  if (rbId) {
+  if (changeId) {
     if (e.which == 119) {
-      viewDiff(rbId);
+      viewDiff(changeId);
     } else if (e.which == 87) {
-      commentDiff(rbId, true, false, function(resp) { performActionCallback(rbId, resp); });
+      commentDiff(changeId, true, false, function(resp) { performActionCallback(changeId, resp); });
     }
   }
 }

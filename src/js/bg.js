@@ -1,27 +1,27 @@
 function contentHandler(request, sender, callback) {
   console.log("REQUEST", request);
   if (request.type == "loadChange") {
-    return loadChange(request.rbId, callback);
+    return loadChange(request.id, callback);
   } else if (request.type == "loadFiles") {
-    return loadFiles(request.rbId, request.revisionId, callback);
+    return loadFiles(request.id, request.revId, callback);
   } else if (request.type == "loadDiff") {
-    return loadDiff(request.rbId, request.revisionId, request.file, request.baseId, callback);
+    return loadDiff(request.id, request.revId, request.file, request.baseId, callback);
   } else if (request.type == "loadComments") {
-    return loadComments(request.rbId, request.revisionId, callback);
+    return loadComments(request.id, request.revId, callback);
   } else if (request.type == "loadFileContent") {
-    return loadFileContent(request.rbId, request.revisionId, request.file, callback);
+    return loadFileContent(request.id, request.revId, request.file, callback);
   } else if (request.type == "viewDiff") {
-    return showDiffs(request.rbId);
+    return showDiffs(request.id);
   } else if (request.type == "commentDiff") {
-    return commentDiff(request.rbId, request.approve, request.comment, callback);
+    return commentDiff(request.id, request.approve, request.comment, callback);
   } else if (request.type == "submitDiff") {
-    return submitDiff(request.rbId, callback);
+    return submitDiff(request.id, callback);
   } else if (request.type == "rebaseChange") {
-    return rebaseChange(request.rbId, callback);
+    return rebaseChange(request.id, callback);
   } else if (request.type == "submitComments") {
-    return submitComments(request.rbId, request.revId, request.review, callback);
+    return submitComments(request.id, request.revId, request.review, callback);
   } else if (request.type == "approveSubmitDiff") {
-    return approveSubmitDiff(request.rbId, callback);
+    return approveSubmitDiff(request.id, callback);
   } else if (request.type == "settings") {
     return loadSettings(callback);
   } else if (request.type == "authenticate") {
@@ -45,9 +45,9 @@ function hidePageAction(tabId) {
   chrome.pageAction.hide(tabId);
 }
 
-function commentDiff(rbId, approve, comment, callback) {
+function commentDiff(id, approve, comment, callback) {
   // callback receives true for success, false for failure
-  var url = '/changes/' + rbId + '/revisions/current/review';
+  var url = '/changes/' + id + '/revisions/current/review';
   var request = {};
   if (approve) {
     request.labels = {"Code-Review": 2}
@@ -59,18 +59,18 @@ function commentDiff(rbId, approve, comment, callback) {
   return true;
 }
 
-function submitDiff(rbId, callback) {
+function submitDiff(id, callback) {
   // callback receives true for success, false for failure
-  var url = '/changes/' + rbId + '/revisions/current/submit';
+  var url = '/changes/' + id + '/revisions/current/submit';
   ajax(url, callback, 'POST', {wait_for_merge: true});
   return true;
 }
 
-function approveSubmitDiff(rbId, callback) {
- commentDiff(rbId, true, false, function(resp) {
+function approveSubmitDiff(id, callback) {
+ commentDiff(id, true, false, function(resp) {
     if (resp.success) {
       // after approve, submit again
-      submitDiff(rbId, callback);
+      submitDiff(id, callback);
     } else {
       callback(resp);
     }
@@ -78,14 +78,14 @@ function approveSubmitDiff(rbId, callback) {
   return true;
 }
 
-function rebaseChange(rbId, callback) {
-  var url = '/changes/' + rbId + '/rebase';
+function rebaseChange(id, callback) {
+  var url = '/changes/' + id + '/rebase';
   ajax(url, callback, 'POST');
   return true;
 }
 
-function submitComments(rbId, revId, review, callback) {
-  var url = '/changes/' + rbId + '/revisions/' + revId + '/review';
+function submitComments(id, revId, review, callback) {
+  var url = '/changes/' + id + '/revisions/' + revId + '/review';
   ajax(url, callback, 'POST', review);
   return true;
 }
@@ -119,32 +119,32 @@ function initializeAuth(callback) {
   $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 1000});
 }
 
-function loadChange(rbId, callback) {
+function loadChange(id, callback) {
   var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS', 'DETAILED_LABELS', 'ALL_FILES'];
-  ajax("/changes/" + rbId + "/detail", callback, 'GET', {o: options}, {traditional: true});
+  ajax("/changes/" + id + "/detail", callback, 'GET', {o: options}, {traditional: true});
   return true;
 }
 
-function loadComments(rbId, revId, callback) {
-  ajax("/changes/" + rbId + "/revisions/" + revId + "/comments/", callback);
+function loadComments(id, revId, callback) {
+  ajax("/changes/" + id + "/revisions/" + revId + "/comments/", callback);
   return true;
 }
 
-function loadDiff(changeId, revisionId, file, baseId, callback) {
+function loadDiff(changeId, revId, file, baseId, callback) {
   var options = {intraline: true};
   if (baseId) {
     options.base = baseId;
   }
-  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/" + encodeURIComponent(file) + "/diff", callback, 'GET', options);
+  ajax("/changes/" + changeId + "/revisions/" + revId + "/files/" + encodeURIComponent(file) + "/diff", callback, 'GET', options);
   return true;
 }
 
-function loadFiles(changeId, revisionId, callback) {
-  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/", callback);
+function loadFiles(changeId, revId, callback) {
+  ajax("/changes/" + changeId + "/revisions/" + revId + "/files/", callback);
   return true;
 }
 
-function loadFileContent(changeId, revisionId, file, callback) {
+function loadFileContent(changeId, revId, file, callback) {
   function fileCallback(resp) {
     if (!resp.success) {
       callback(resp);
@@ -153,7 +153,7 @@ function loadFileContent(changeId, revisionId, file, callback) {
       callback(resp);
     }
   }
-  ajax("/changes/" + changeId + "/revisions/" + revisionId + "/files/" + encodeURIComponent(file) + "/content", fileCallback, undefined, undefined, undefined, "text");
+  ajax("/changes/" + changeId + "/revisions/" + revId + "/files/" + encodeURIComponent(file) + "/content", fileCallback, undefined, undefined, undefined, "text");
   return true;
 }
 
@@ -283,25 +283,8 @@ function _parseChallenge(h) {
   return auth;
 }
 
-function _extractUserName($page) {
-  return $("#ul.accountnav li:first-child b", $page).text();
-}
-
-function _extractReviewers($page) {
-  var $blocks = $(".review .header", $page);
-  var reviewers = [];
-  for (var i=0; i<$blocks.length; i++) {
-    var $block = $($blocks[i]);
-    reviewers.push({
-      name: $(".reviewer a", $block).text(),
-      shipit: $(".shipit").length > 0
-    })
-  }
-  return reviewers;
-}
-
-function showDiffs(rbId) {
-  chrome.tabs.create({url:gerritUrl() + "/" + rbId});
+function showDiffs(id) {
+  chrome.tabs.create({url:gerritUrl() + "/" + id});
 }
 
 function login() {
