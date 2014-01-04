@@ -1,5 +1,5 @@
-gmail-gerrit
-============
+Gerrit for Gmail Chrome Extension
+=================================
 
 Gerrit is great, but it sure sends a ton of emails.  For those of us who believe in code reviews _and_ prefer
 small, logical, easy-to-digest commits, it means a ton of small code reviews clogging up our inboxes.  Most
@@ -7,7 +7,7 @@ of the code reviews are so simple and straightforward anyway (unless you're doin
 glanced at and approved quickly, and having to go to the Gerrit interface every time a review comes creates a
 lot of friction.
 
-This extension aims to implement a very basic Gerrit workflow into your Gmail, based on the emails Gerrit sends.
+This Chrome extension aims to implement a very basic Gerrit workflow into your Gmail, based on the emails Gerrit sends.
 Specifically,
 
 * It formats your Gerrit messages in Gmail.
