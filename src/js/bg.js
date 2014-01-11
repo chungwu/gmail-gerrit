@@ -20,8 +20,6 @@ function contentHandler(request, sender, callback) {
     return rebaseChange(request.id, callback);
   } else if (request.type == "submitComments") {
     return submitComments(request.id, request.revId, request.review, callback);
-  } else if (request.type == "approveSubmitDiff") {
-    return approveSubmitDiff(request.id, callback);
   } else if (request.type == "settings") {
     return loadSettings(callback);
   } else if (request.type == "authenticate") {
@@ -63,18 +61,6 @@ function submitDiff(id, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + id + '/revisions/current/submit';
   ajax(url, callback, 'POST', {wait_for_merge: true});
-  return true;
-}
-
-function approveSubmitDiff(id, callback) {
- commentDiff(id, true, false, function(resp) {
-    if (resp.success) {
-      // after approve, submit again
-      submitDiff(id, callback);
-    } else {
-      callback(resp);
-    }
-  });
   return true;
 }
 

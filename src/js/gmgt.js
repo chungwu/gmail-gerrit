@@ -134,16 +134,20 @@ function renderBox(id, data) {
     $status.addClass("green");
     if (isOwner) {
       $(".submit-button", $info).show();
+      /*
       if (!data.mergeable) {
         $(".rebase-button", $info).show();
         $(".rebase-submit-button", $info).show();
       }
+      */
     }
+  /*
   } else if (status == "Merge Pending") {
     if (isOwner) {
       $(".rebase-button", $info).show();
       $(".rebase-submit-button", $info).show();
     }
+  */
   } else if (status == "Merged") {
     $status.addClass("green");
   } else {
@@ -1281,6 +1285,17 @@ function commentDiff(id, approve, comment, callback) {
 }
 
 function approveSubmitDiff(id, callback) {
+  function approveCallback(resp) {
+    if (!resp.success) {
+      callback(resp);
+    } else {
+      submitDiff(id, callback);
+    }
+  }
+  commentDiff(id, true, false, approveCallback);
+}
+
+function submitDiff(id, callback) {
   function submitCallback(resp) {
     if (!resp.success && resp.status == 409) {
       console.log("Submit failed; automatically rebasing...");
@@ -1289,11 +1304,7 @@ function approveSubmitDiff(id, callback) {
       callback(resp);
     }
   }
-  authenticatedSend({type: "approveSubmitDiff", id: id}, submitCallback);
-}
-
-function submitDiff(id, callback) {
-  authenticatedSend({type: "submitDiff", id: id}, callback);
+  authenticatedSend({type: "submitDiff", id: id}, submitCallback);
 }
 
 function rebaseChange(id, callback) {
