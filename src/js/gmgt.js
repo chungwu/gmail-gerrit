@@ -141,13 +141,11 @@ function renderBox(id, data) {
       }
       */
     }
-  /*
   } else if (status == "Merge Pending") {
     if (isOwner) {
       $(".rebase-button", $info).show();
       $(".rebase-submit-button", $info).show();
     }
-  */
   } else if (status == "Merged") {
     $status.addClass("green");
   } else {
