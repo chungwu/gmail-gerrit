@@ -401,7 +401,7 @@ function formatNewChange($card, $msg, text, reviewData) {
   var message = extractCommitMessage(revision.commit);
   var messageLines = message.split("\n");
   for (var i = 0; i < messageLines.length; i++) {
-    var $line = $("<p/>").text(messageLines[i]).appendTo($header);
+    var $line = $("<div/>").text(messageLines[i] + "\xA0").appendTo($header);
     if (i == 0) {
       $line.addClass("gerrit-header");
     }
@@ -1005,7 +1005,7 @@ function formatComment($card, $msg, text, reviewData) {
         $("<br/>").appendTo($filebox);
         $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + comment.lineContent).appendTo($filebox);
         for (var k = 0; k < comment.comments.length; k++) {
-          $("<div/>").text(comment.comments[k]).appendTo($filebox);
+          $("<div/>").text(comment.comments[k] + '\xA0').appendTo($filebox);
         }
         var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
         lineReplyWidget.getWidget().appendTo($filebox);
