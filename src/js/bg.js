@@ -117,7 +117,7 @@ function loadComments(id, revId, callback) {
 }
 
 function loadDiff(changeId, revId, file, baseId, callback) {
-  var options = {intraline: true};
+  var options = {intraline: true, context: "ALL"};
   if (baseId) {
     options.base = baseId;
   }
@@ -143,6 +143,7 @@ function loadFileContent(changeId, revId, file, callback) {
   return true;
 }
 
+var _outstandingRequests = {};
 function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
   var dataType = opt_dataType || "json";
   var settings = {
@@ -208,9 +209,16 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
   //   $.ajax(gerritUrl() + "/a" + uri, settings);
   // }
 
-  settings.success = onSuccess;
-  settings.error = onError;
-  $.ajax(gerritUrl() + "/a" + uri, settings);
+  var key = JSON.stringify([uri, settings.dataType, settings.data]);
+  if (settings.type == "GET" && key in _outstandingRequests) {
+    console.log("Collapsing calls", key);
+    _outstandingRequests[key].done(onSuccess).fail(onError);
+  } else {
+    _outstandingRequests[key] = $.ajax(gerritUrl() + "/a" + uri, settings)
+      .done(onSuccess)
+      .fail(onError)
+      .always(function() { delete _outstandingRequests[key]; });
+  }
 }
 
 var xhr;
