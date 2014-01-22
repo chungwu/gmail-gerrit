@@ -244,6 +244,26 @@ function loadDiff(id, revId, file, baseId, callback) {
   authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId}, callback);
 }
 
+function loadAndCacheDiff(reviewData, revId, file, baseId, callback) {
+  var rev = reviewData.revisions[revId];
+  if (!rev.diffs) {
+    rev.diffs = {};
+  }
+  var key = file + baseId;
+  if (rev.diffs[key]) {
+    callback({success: true, data: rev.diffs[key]});
+  } else {
+    loadDiff(reviewData._number, revId, file, baseId, function(resp) {
+      if (!resp.success) {
+        callback(resp);
+      } else {
+        rev.diffs[key] = resp.data;
+        callback(resp);
+      }
+    });
+  }
+}
+
 function loadAndCacheComments(reviewData, revId, callback) {
   if (reviewData.revisions[revId].comments) {
     callback({success: true, data: reviewData.revisions[revId].comments});
@@ -264,14 +284,15 @@ function loadComments(id, revId, callback) {
 }
 
 function loadAndCacheFileContent(reviewData, revId, file, callback) {
-  if (reviewData.revisions[revId].files[file].content) {
+  var rev = reviewData.revisions[revId];
+  if (rev.files[file].content) {
     callback({success: true, data: reviewData.revisions[revId].files[file].content});
   } else {
     loadFileContent(reviewData._number, revId, file, function(resp) {
       if (!resp.success) {
         callback(resp);
       } else {
-        reviewData.revisions[revId].files[file].content = resp.data;
+        rev.files[file].content = resp.data;
         callback(resp);
       }
     });
@@ -476,7 +497,7 @@ function renderFileBox(reviewData, revId, file, baseId) {
   var $filebox = $("<div class='gerrit-content-box'/>");
   $filebox.append($("<div class='gerrit-file-title'/>").text(file));
 
-  loadDiff(reviewData._number, revId, file, baseId, function(resp) {
+  loadAndCacheDiff(reviewData, revId, file, baseId, function(resp) {
     if (resp.success) {
       $filebox.append(appendFileDiff($filebox, file, resp.data));
     } else {
@@ -1027,8 +1048,41 @@ function formatComment($card, $msg, text, reviewData) {
   }
 }
 
+function _diffToContentLines(diff) {
+  var content = [];
+  for (var i = 0; i < diff.content.length; i++) {
+    var section = diff.content[i];
+    var lines = section.ab || section.b || [];
+    for (var j = 0; j < lines.length; j++) {
+      content.push(lines[j]);
+    }
+  }
+  return content;
+}
+
 function loadMessageComments($card, text, reviewData, revId, callback) {
   var gMsg = undefined;
+
+  var baseId = guessNewPatchBase(reviewData.revisions[revId]._number, reviewData);
+  function loadFileComments2(file, allComments) {
+    var deferred = $.Deferred();
+    loadAndCacheDiff(reviewData, revId, file, baseId, function(resp) {
+      if (!resp.success) {
+        deferred.resolve(resp);
+      } else {
+        var fileComments = allComments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
+        var content = _diffToContentLines(resp.data);
+        var lineComments = [];
+        for (var i = 0; i < fileComments.length; i++) {
+          var fc = fileComments[i];
+          var lineContent = fc.side == "PARENT" ? "(unavailable...)" : content[fc.line-1];
+          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n")});
+        }
+        deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});        
+      }
+    });
+    return deferred;
+  }
 
   function loadFileComments(file, allComments) {
     var deferred = $.Deferred();
@@ -1062,7 +1116,7 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
 
     var deferreds = [];
     for (var file in allComments) {
-      deferreds.push(loadFileComments(file, allComments));
+      deferreds.push(loadFileComments2(file, allComments));
     }
     $.when.apply($, deferreds).done(function() {
       var resps = arguments;
