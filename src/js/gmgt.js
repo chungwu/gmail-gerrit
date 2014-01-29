@@ -1003,7 +1003,10 @@ function formatComment($card, $msg, text, reviewData) {
       for (var j = 0; j < fileComment.lineComments.length; j++) {
         var comment = fileComment.lineComments[j];
         $("<br/>").appendTo($filebox);
-        $("<pre class='gerrit-line'/>").text("Line " + comment.line + ": " + comment.lineContent).appendTo($filebox);
+        $("<pre class='gerrit-line'/>")
+          .text("Line " + comment.line + ": " + comment.lineContent)
+          .addClass(comment.side == "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
+          .appendTo($filebox);
         for (var k = 0; k < comment.comments.length; k++) {
           $("<div/>").text(comment.comments[k] + '\xA0').appendTo($filebox);
         }
@@ -1076,7 +1079,7 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
         for (var i = 0; i < fileComments.length; i++) {
           var fc = fileComments[i];
           var lineContent = fc.side == "PARENT" ? "(unavailable...)" : content[fc.line-1];
-          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n")});
+          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side});
         }
         deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});        
       }
