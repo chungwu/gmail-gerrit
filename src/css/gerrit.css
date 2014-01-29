@@ -126,6 +126,13 @@ a.gerrit-button:hover {
   background-color: #fee;
 }
 
+.gerrit-line-comment {
+  border-left: 3px solid #E3CE8F;
+  padding-left: 5px;
+  margin: 5px;
+  margin-right: 0;
+}
+
 .gerrit-line-edit-part-old {
   /*background-color: #faa;*/
   background-color: #ffcccc;

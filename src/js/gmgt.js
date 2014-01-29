@@ -1007,8 +1007,9 @@ function formatComment($card, $msg, text, reviewData) {
           .text("Line " + comment.line + ": " + comment.lineContent)
           .addClass(comment.side == "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
           .appendTo($filebox);
+        var $comment = $("<div class='gerrit-line-comment'/>").appendTo($filebox);
         for (var k = 0; k < comment.comments.length; k++) {
-          $("<div/>").text(comment.comments[k] + '\xA0').appendTo($filebox);
+          $("<div/>").text(comment.comments[k] + '\xA0').appendTo($comment);
         }
         var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
         lineReplyWidget.getWidget().appendTo($filebox);
