@@ -212,6 +212,9 @@ function authenticatedSend(msg, callback) {
       showNeedLogin();
       gSettings.auth = false;
     }
+    if (resp.success) {
+      hidePageAction();
+    }
     console.log("Function call:", msg);
     console.log("Result:", resp);
     callback(resp);
