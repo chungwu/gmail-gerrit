@@ -24,7 +24,7 @@ Specifically,
 Requirements
 ------------
 
-* Gerrit 2.8+, which contains most of the REST API endpoints necessary for the extension.
+* **Gerrit 2.8+**, which contains most of the REST API endpoints necessary for the extension.
 * Your email templates must include the following, in the footer or elsewhere:
   * A link to Gerrit for the change (`$email.changeUrl`)
   * `Gerrit-PatchSet: $patchSet.patchSetId`
