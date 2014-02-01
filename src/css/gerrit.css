@@ -138,6 +138,18 @@ a.gerrit-button:hover {
   cursor: pointer;
 }
 
+.gerrit-parent-comments-collapsed {
+  text-align: center;
+  color: #999;
+  cursor: pointer;
+  color: #92AEDE;
+}
+
+.gerrit-parent-comments-collapsed .gerrit-strikethrough {
+  text-decoration: line-through;
+  margin: 0 10px;
+}
+
 .gerrit-line-comment.gerrit-parent-comment .gerrit-collapsed-toggle {
   display: none;
 }

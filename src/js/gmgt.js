@@ -1013,9 +1013,20 @@ function formatComment($card, $msg, text, reviewData) {
       var $thread = $("<div/>");
       var $cur = makeLineComment(lastComment, false).appendTo($thread);
       var cur = lastComment;
+      var parentComments = [];
       while (cur.in_reply_to && cur.in_reply_to in id2comment) {
         cur = id2comment[cur.in_reply_to];
         $cur = makeLineComment(cur, true).addClass("gerrit-parent-comment").insertBefore($cur);
+        parentComments.push($cur[0]);
+      }
+      if (parentComments.length > 2) {
+        var $hiddenComments = $(parentComments.slice(1, parentComments.length-1));
+        $hiddenComments.hide();
+        var $teaser = $("<div/>").addClass("gerrit-parent-comments-collapsed").insertBefore($(parentComments[0])).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0")).append($("<span/>").text(parentComments.length - 2 + " more comments")).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0"));
+        $teaser.click(function() {
+          $teaser.hide();
+          $hiddenComments.show();
+        });
       }
       return $thread;
     }
