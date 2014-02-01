@@ -978,8 +978,48 @@ function formatComment($card, $msg, text, reviewData) {
   var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
   var messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
-  
+
   function appendMessageComments(messageComments) {
+    id2comment = {}
+    for (var file in messageComments.allComments) {
+      var fileComments = messageComments.allComments[file];
+      for (var i=0; i<fileComments.length; i++) {
+        id2comment[fileComments[i].id] = fileComments[i];
+      }
+    }
+
+    function makeLineComment(comment, collapsed) {
+      var $comment = $("<div class='gerrit-line-comment'/>");
+      var lines = comment.message.split("\n");
+      for (var k = 0; k < lines.length; k++) {
+        var $line = $("<div/>").appendTo($comment);
+        if (k == 0) {
+          $line.append($("<strong/>").text(comment.author.name + ": "));
+        }
+        $line.append($("<span/>").text(lines[k] + '\xA0'));
+      }
+      if (collapsed) {
+        $("<a href='javascript:void 0;'/>").text("(expand)").addClass("gerrit-collapsed-toggle").appendTo($comment);
+        $comment.addClass("gerrit-collapsed");
+        $comment.click(function() {
+          $comment.toggleClass("gerrit-collapsed");
+        });
+      }
+      
+      return $comment;
+    }
+  
+    function makeCommentThread(lastComment) {
+      var $thread = $("<div/>");
+      var $cur = makeLineComment(lastComment, false).appendTo($thread);
+      var cur = lastComment;
+      while (cur.in_reply_to && cur.in_reply_to in id2comment) {
+        cur = id2comment[cur.in_reply_to];
+        $cur = makeLineComment(cur, true).addClass("gerrit-parent-comment").insertBefore($cur);
+      }
+      return $thread;
+    }
+  
     var $header = $("<div/>").appendTo($commentsBox);
     for (var i = 0; i < messageComments.message.length; i++) {
       var ptext = messageComments.message[i];
@@ -1004,16 +1044,16 @@ function formatComment($card, $msg, text, reviewData) {
       var $filebox = $("<div class='gerrit-content-box'/>").appendTo($commentsBox);
       $filebox.append($("<div class='gerrit-file-title'/>").text(fileComment.file));
       for (var j = 0; j < fileComment.lineComments.length; j++) {
-        var comment = fileComment.lineComments[j];
+        var lc = fileComment.lineComments[j];
+        var comment = id2comment[lc.id];
         $("<br/>").appendTo($filebox);
         $("<pre class='gerrit-line'/>")
-          .text("Line " + comment.line + ": " + comment.lineContent)
+          .text("Line " + comment.line + ": " + lc.lineContent)
           .addClass(comment.side == "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
           .appendTo($filebox);
-        var $comment = $("<div class='gerrit-line-comment'/>").appendTo($filebox);
-        for (var k = 0; k < comment.comments.length; k++) {
-          $("<div/>").text(comment.comments[k] + '\xA0').appendTo($comment);
-        }
+
+        makeCommentThread(comment).appendTo($filebox);
+
         var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
         lineReplyWidget.getWidget().appendTo($filebox);
         lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
@@ -1136,10 +1176,8 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
           fileComments.push(resps[i].data);
         }
       }
-      callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments}});
+      callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}});
     });
-
-    return {message: gMsg.message.split("\n")};
   });
 }
  
