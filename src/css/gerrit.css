@@ -76,6 +76,10 @@ a.gerrit-button:hover {
   font-weight: bold;
 }
 
+.gerrit-box .note .reviewer-verified {
+  color: #045900;
+}
+
 .green {
   color: #045900 !important;
 }

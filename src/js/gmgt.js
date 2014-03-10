@@ -17,7 +17,7 @@ var infoBox = (
         "None" +
       "{%else%}" +
         "{%each(i, reviewer) reviewers%}" +
-          "${i > 0 ? ', ' : ''}<span class='${reviewer.status == \"approved\" ? \"reviewer-approved\" : \"\"}'>${reviewer.login}</span>" +
+          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : \"\"}'>${reviewer.login}</span>" +
         "{%/each%}" +
       "{%/if%}" +
     "</div>" +
@@ -49,32 +49,57 @@ var redColor = "#b30000";
 var greenBg = "#D4FAD5";
 var redBg = "#FFD9D9";
 
+function labeledValue(label, value) {
+  if (value == 0) { return undefined; }
+  else if (value > 0) { return label + "+" + value; }
+  else { return label + value; }
+}
+
 function extractReviewers(data) {
-  var reviewers = [];
-  var seen = {};
+  var reviewers = {};
+  function mkrev(rev) {
+    return {
+      name: rev.name, email: rev.email, login: rev.username,
+      self: rev.email == gSettings.email, labels: []
+    };
+  }
   if (data.labels && data.labels["Code-Review"] && data.labels["Code-Review"].all) {
     for (var i=0; i<data.labels["Code-Review"].all.length; i++) {
       var rev = data.labels["Code-Review"].all[i];
-      if (!(rev.email in seen)) {
-        reviewers.push({
-          name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
-          self: rev.email == gSettings.email, status: rev.value == 2 ? "approved" : "new"
-        });
-        seen[rev.email] = true;
+      var reviewer = rev.username in reviewers ? reviewers[rev.username] : mkrev(rev);
+      if (rev.value != 0) {
+        reviewer.labels.push(labeledValue("Code-Review", rev.value));
       }
+      reviewers[reviewer.login] = reviewer;
+    }
+  }
+  if (data.labels && data.labels["Verified"] && data.labels["Verified"].all) {
+    for (var i=0; i<data.labels["Verified"].all.length; i++) {
+      var rev = data.labels["Verified"].all[i];
+      var reviewer = rev.username in reviewers ? reviewers[rev.username] : mkrev(rev);
+      if (rev.value != 0) {
+        reviewer.labels.push(labeledValue("Verified", rev.value));
+      }
+      reviewers[reviewer.login] = reviewer;
     }
   }
   for (var i = 0; i < data.removable_reviewers.length; i++) {
     var rev = data.removable_reviewers[i];
-    if (!(rev.email in seen)) {
-      reviewers.push({
-        name: rev.name, email: rev.email, login: rev.email.split("@")[0], 
-        self: rev.email == gSettings.email, status: "new"
-      });
-      seen[rev.email] = true;
+    if (!rev.username in reviewers) {
+      reviewers[reviewer.login] = mkrev(rev);
     }
   }
-  return reviewers;
+  return objectValues(reviewers);
+}
+
+function objectValues(obj) {
+  var vals = [];
+  for (key in obj) {
+    if (obj.hasOwnProperty(key)) {
+      vals.push(obj[key]);
+    }
+  }
+  return vals;
 }
 
 function loadAndRenderBox(id) {
@@ -1041,6 +1066,9 @@ function formatComment($card, $msg, text, reviewData) {
       if (ptext.indexOf("Code-Review+2") >= 0) {
         $header.addClass("gerrit-highlight-box");
         $line.addClass("green");
+      } else if (ptext.indexOf("Verified+1") >= 0) {
+        $header.addClass("gerrit-highlight-box");
+        $line.addClass("green");
       } else {
         $header.addClass("gerrit-content-box");
       }
@@ -1216,11 +1244,13 @@ function guessGerritMessage($card, text, revId, reviewData) {
     if (textCrunched.indexOf(crunch(msg.message)) < 0) {
       continue;
     }
+    /*
     if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
           cardFrom.indexOf(msg.author.email) >= 0 ||
           cardFrom.indexOf(msg.author.username) >= 0)) {
       continue;
     }
+    */
     if (allComments && !matchFileComments(msg)) {
       continue;
     }
