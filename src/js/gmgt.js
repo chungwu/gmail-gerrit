@@ -1436,7 +1436,7 @@ function approveSubmitDiff(id, callback) {
 
 function submitDiff(id, callback) {
   function submitCallback(resp) {
-    if (!resp.success && resp.status == 409) {
+    if (!resp.success && resp.status == 409 && resp.err_msg.indexOf("Please rebase") >= 0) {
       console.log("Submit failed; automatically rebasing...");
       rebaseSubmitChange(id, callback);
     } else {
