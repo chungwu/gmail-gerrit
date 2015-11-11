@@ -76,8 +76,17 @@ a.gerrit-button:hover {
   font-weight: bold;
 }
 
+.gerrit-box .note .reviewer-approved-failed {
+  color: #b30000;
+  font-weight: bold;
+}
+
 .gerrit-box .note .reviewer-verified {
   color: #045900;
+}
+
+.gerrit-box .note .reviewer-verified-failed {
+  color: #b30000;
 }
 
 .green {

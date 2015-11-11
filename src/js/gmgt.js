@@ -17,7 +17,7 @@ var infoBox = (
         "None" +
       "{%else%}" +
         "{%each(i, reviewer) reviewers%}" +
-          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : \"\"}'>${reviewer.login}</span>" +
+          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : reviewer.labels.join(',').indexOf(\"Code-Review-\") >= 0 ? \"reviewer-approved-failed\" : reviewer.labels.join(',').indexOf(\"Verified-\") >= 0 ? \"reviewer-verified-failed\" : \"\"}'>${reviewer.login}</span>" +
         "{%/each%}" +
       "{%/if%}" +
     "</div>" +
@@ -89,6 +89,7 @@ function extractReviewers(data) {
       reviewers[reviewer.login] = mkrev(rev);
     }
   }
+  console.log("REVIEWERS", reviewers);
   return objectValues(reviewers);
 }
 
