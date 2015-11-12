@@ -247,3 +247,41 @@ textarea.gerrit-reply {
   border: 1px solid #ccc;
   padding: 10px;
 }
+
+.gerrit-threadlist-icon {
+  display: inline-block;
+  vertical-align: middle;
+  width: 12px;
+  height: 12px;
+  margin-right: 5px;
+}
+
+.gerrit-threadlist-span {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.gerrit-threadlist-button--muted {
+  opacity: 0.6;
+}
+
+.gerrit-threadlist-button--success {
+  background: none !important;
+  background-color: #8BC34A !important;
+}
+.gerrit-threadlist-button--success .gerrit-threadlist-span {
+  color: white !important;
+}
+
+.gerrit-threadlist-button--danger {
+  background: none !important;
+  background-color: #FF5722 !important;
+}
+.gerrit-threadlist-button--danger .gerrit-threadlist-span {
+  color: white !important;
+}
+
+.gerrit-threadlist-button--action {
+  background: none !important;
+  background-color: #FFC107 !important;
+}

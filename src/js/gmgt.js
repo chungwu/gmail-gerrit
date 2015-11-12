@@ -138,15 +138,9 @@ function renderBox(id, data) {
   $sideBox.empty();
 
   var status = reviewStatus(data);
-  console.log("STATUS", status);
-  var isOwner = gSettings.email == data.owner.email;
-  var isReviewer = false;
+  var isOwner = isChangeOwner(data);
+  var isReviewer = isChangeReviewer(data);
   var reviewers = extractReviewers(data);
-  for (var i = 0; i < reviewers.length; i++) {
-    if (gSettings.email == reviewers[i].email) {
-      isReviewer = true;
-    }
-  }
 
   var $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: gSettings.url}).appendTo($sideBox);
 
@@ -174,6 +168,8 @@ function renderBox(id, data) {
     }
   } else if (status == "Merged") {
     $status.addClass("green");
+  } else if (status == "Failed Verify" || status == "Rejected") {
+    $status.addClass("red");
   } else {
     if (isReviewer || isOwner) {
       $(".approve-button", $info).show();
@@ -1344,11 +1340,59 @@ function guessNewPatchBase(pid, reviewData) {
   return undefined;
 }
 
-function isApproved(reviewData) {
-  if (!reviewData.labels || !reviewData.labels['Code-Review'] || !reviewData.labels['Code-Review'].all || reviewData.labels['Code-Review'].all.length == 0) return false;
-  var reviews = reviewData.labels['Code-Review'].all
+function getLabelStatus(reviewData, label) {
+  if (!reviewData.labels || !reviewData.labels[label]) {
+    return 0;
+  }
+  var reviewObj = reviewData.labels[label];
+  if (!reviewObj.all || reviewObj.all.length == 0) {
+    return 0;
+  }
+  var reviews = reviewObj.all;
+  var maxPoints = 0;
+  var minPoints = 0;
   for (var i=0; i < reviews.length; i++) {
-    if (reviews[i].value >= 2) {
+    maxPoints = Math.max(maxPoints, reviews[i].value);
+    minPoints = Math.min(minPoints, reviews[i].value);
+  }
+  if (minPoints < 0) {
+    return minPoints;
+  } else {
+    return maxPoints;
+  }
+}
+
+function isVerifiedRejected(reviewData) {
+  if (!reviewData.labels || !reviewData.labels['Verified']) {
+    return false;
+  }
+  var reviewObj = reviewData.labels['Verified'];
+  if (reviewObj.approved) {
+    return false;
+  }
+  if (reviewObj.rejected) {
+    return true;
+  }
+  if (!reviewObj.all || reviewObj.all.length == 0) return false;
+  var reviews = reviewObj.all;
+  for (var i=0; i < reviews.length; i++) {
+    if (reviews[i].value < 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isChangeOwner(change) {
+  return gSettings.email == change.owner.email;
+}
+
+function isChangeReviewer(change) {
+  if (!change.removable_reviewers) {
+    return false;
+  }
+  for (var i=0; i<change.removable_reviewers.length; i++) {
+    if (gSettings.email == change.removable_reviewers[i].email) {
       return true;
     }
   }
@@ -1356,18 +1400,54 @@ function isApproved(reviewData) {
 }
 
 function reviewStatus(reviewData) {
+  var isOwner = isChangeOwner(reviewData);
+  var isReviewer = isChangeReviewer(reviewData);
   if (reviewData.status == 'MERGED') {
     return 'Merged';
   } else if (reviewData.status == 'ABANDONED') {
     return 'Abandoned';
   } else if (reviewData.status == 'SUBMITTED') {
     return 'Merge Pending';
-  } else if (isApproved(reviewData)) {
+  } 
+
+  var approved = getLabelStatus(reviewData, 'Code-Review');
+  if (approved == 2) {
     return 'Approved';
+  } else if (approved < 0) {
+    return "Rejected";
+  }
+  
+  var verified = getLabelStatus(reviewData, 'Verified');
+  if (verified < 0) {
+    return "Failed Verify";
+  } 
+
+  if (isOwner) {
+    for (var i=reviewData.messages.length-1; i>=0; i--) {
+      var message = reviewData.messages[i];
+      if (message.message.indexOf("rebased") >= 0 || message.author.username == "jenkins") {
+        continue;
+      } else if (message.author.email == gSettings.email) {
+        return "Waiting";
+      }
+    }
+    return "To Respond";
+  } else if (isReviewer) {
+    for (var i=reviewData.messages.length-1; i>=0; i--) {
+      var message = reviewData.messages[i];
+      if (message.message.indexOf("rebased") >= 0 || message.author.username == "jenkins") {
+        continue;
+      } else if (message.author.email == gSettings.email) {
+        return "Reviewed";
+      } else if (message.author.email == reviewData.owner.email) {
+        return "To Review";
+      }
+    }
+    return "To Review";
   } else if (reviewData.reviewed) {
-    return 'In Review';
+    return "In Review";
   } else {
-    return 'New';
+    return "New";
   }
 }
 
@@ -1481,20 +1561,20 @@ function initialize() {
       return;
     }
 
-    console.log("Running Gerrit plugin!");
+    console.log("Running Gerrit plugin! DEV YO");
 
     $(window).hashchange(function() {
-      setTimeout(checkDiff, 100);
+      setTimeout(checkPage, 100);
     });
     setTimeout(function() {
       $("body").keypress(handleKeyPress);
-      checkDiff();
+      checkPage();
     }, 3000);
 
     authenticate(function(resp) {
       if (resp.success) {
         console.log("Authenticated!");
-        checkDiff();
+        checkPage();
       } else {
         console.log("Not authenticated!");
         showNeedLogin();
@@ -1511,6 +1591,16 @@ function extractDiffIdFromUrl(url) {
   return null;
 }
 
+function detectMode() {
+  if ($("div[role='main'] table[role='presentation']").length > 0) {
+    return "thread";
+  } else if ($("div[role='main'] table.F.cf.zt").length > 0) {
+    return "threadlist";
+  } else {
+    return "unknown";
+  }
+}
+
 function extractDiffId() {
   var $thread = $("div[role='main']");
   var $anchor = $("a[href*='" + gSettings.url + "']", $thread);
@@ -1522,6 +1612,98 @@ function extractDiffId() {
     }
   }
   return null;
+}
+
+function checkPage() {
+  var mode = detectMode();
+  console.log("Gmail in mode", mode);
+  if (mode == "thread") {
+    checkDiff();
+  } else if (mode == "threadlist") {
+    checkThreads();
+  } else {
+    clearDiff();
+  }
+}
+
+function checkThreads() {
+  var $subjects = $("div[role='main'] table.F.cf.zt td div[role='link'] div.y6 span:first-child");
+  if ($subjects.length == 0) {
+    return;
+  }
+
+  var needData = _.any($subjects, function(s) { return !$(s).data("gerrit-thread-seen"); });
+  if (needData) {
+    function callback(resp) {
+      console.log("Loaded changes", resp);
+      if (!resp.success) {
+        return;
+      }
+      annotateThreads($subjects, resp.data);
+    }
+    console.log("Loading data...");
+    authenticatedSend({type: "loadChanges"}, callback);
+  }
+  setTimeout(checkThreads, 5000);
+}
+
+function annotateThreads($subjects, changes) {
+  for (var i=0; i<$subjects.length; i++) {
+    var $subject = $($subjects[i]);
+    if ($subject.data("gerrit-thread-seen") && !$subject.data("gerrit-thread-annotated")) {
+      console.log("Skipping seen but not gerrit: ", $subject.text());
+      continue;
+    }
+    $subject.data("gerrit-thread-seen", true);
+    var text = $subject.text();
+    for (var j=0; j<changes.length; j++) {
+      if (text.indexOf(changes[j].subject) >= 0) {
+        $subject.data("gerrit-thread-annotated", true);
+        annotateSubject($subject, changes[j]);
+      }
+    }
+  }
+}
+
+function annotateSubject($subject, change) {
+  console.log("Annotating '" + change.subject + "'", $subject);
+  var $button = $(".gerrit-threadlist-button", $subject.closest("td"));
+  var $status;
+  if ($button.length > 0) {
+    console.log("Already annotated; reusing");
+    $status = $(".gerrit-threadlist-span", $button);
+  } else {
+    var $parentLink = $subject.closest("div[role='link']");
+    $parentLink.wrap("<div class='a4X' style='padding-right:15ex;'/>");
+    var $panel = $("<span/>").addClass("aKS").insertAfter($parentLink);
+    var $button = $("<div/>").addClass("T-I J-J5-Ji aOd aS9 T-I-awv L3 gerrit-threadlist-button").prop("role", "button").click(function() { viewDiff(change._number); }).appendTo($panel);
+    $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
+    var $status = $("<span/>").addClass("aJ6 gerrit-threadlist-span").appendTo($button);
+  }
+
+  var status = reviewStatus(change);
+  $status.text(status);
+
+  var isOwner = isChangeOwner(change);
+
+  if (["Merged", "Abandoned", "Merge Pending", "Reviewed", "Waiting"].indexOf(status) >= 0) {
+    $button.addClass("gerrit-threadlist-button--muted");
+  } 
+  if (["Approved"].indexOf(status) >= 0) {
+    $button.addClass("gerrit-threadlist-button--success");
+    if (!isOwner) {
+      $button.addClass("gerrit-threadlist-button--muted");
+    }      
+  } 
+  if (["Failed Verify", "Rejected"].indexOf(status) >= 0) {
+    $button.addClass("gerrit-threadlist-button--danger");
+    if (!isOwner) {
+      $button.addClass("gerrit-threadlist-button--muted");
+    }
+  } 
+  if (["To Review", "To Respond"].indexOf(status) >= 0) {
+    $button.addClass("gerrit-threadlist-button--action");
+  }
 }
 
 function checkDiff() {

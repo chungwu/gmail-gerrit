@@ -4,6 +4,8 @@ function contentHandler(request, sender, callback) {
     return loadChange(request.id, callback);
   } else if (request.type == "loadFiles") {
     return loadFiles(request.id, request.revId, callback);
+  } else if (request.type == "loadChanges") {
+    return loadChanges(callback);
   } else if (request.type == "loadDiff") {
     return loadDiff(request.id, request.revId, request.file, request.baseId, callback);
   } else if (request.type == "loadComments") {
@@ -103,6 +105,13 @@ function initializeAuth(callback) {
     callback({success: false, err_msg: "Cannot authenticate"});
   }
   $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 1000});
+}
+
+function loadChanges(callback) {
+  var options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
+  var query = "(is:reviewer OR is:owner) AND -age:7d";
+  ajax("/changes/", callback, 'GET', {q: query, o: options}, {traditional: true});
+  return true;
 }
 
 function loadChange(id, callback) {
