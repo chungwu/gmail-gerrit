@@ -257,9 +257,8 @@ function authenticatedSend(msg) {
 
 function sendMessage(msg) {
   var deferred = $.Deferred();
-  console.log("Function call:", msg);
   chrome.runtime.sendMessage(msg, function(resp) {
-    console.log("Function result!", resp);
+    console.log("Function call: " + JSON.stringify(msg), resp);
     deferred.resolve(resp);
   });
   return deferred.promise();
@@ -273,67 +272,56 @@ function loadFiles(id, revId, callback) {
   authenticatedSend({type: "loadFiles", id: id, revId: revId}).done(callback);
 }
 
-function loadDiff(id, revId, file, baseId, callback) {
-  authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId}).done(callback);
+function loadDiff(id, revId, file, baseId) {
+  return authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId});
 }
 
 function loadAndCacheDiff(reviewData, revId, file, baseId, callback) {
   var rev = reviewData.revisions[revId];
+  var key = file + baseId;
   if (!rev.diffs) {
     rev.diffs = {};
   }
-  var key = file + baseId;
-  if (rev.diffs[key]) {
-    callback({success: true, data: rev.diffs[key]});
-  } else {
-    loadDiff(reviewData._number, revId, file, baseId, function(resp) {
-      if (!resp.success) {
-        callback(resp);
-      } else {
-        rev.diffs[key] = resp.data;
-        callback(resp);
+  var makePromise = function() {
+    return loadDiff(reviewData._number, revId, file, baseId);
+  };
+  return loadAndCache(rev.diffs, key, makePromise).done(callback);
+}
+
+function loadAndCache(obj, prop, promiser) {
+  var promiseProp = "__promise_" + prop;
+  if (!obj[promiseProp]) {
+    obj[promiseProp] = promiser().done(function(resp) {
+      if (resp.success && !obj[prop]) {
+        obj[prop] = resp.data;
       }
     });
   }
+  return obj[promiseProp];
 }
 
 function loadAndCacheComments(reviewData, revId, callback) {
-  if (reviewData.revisions[revId].comments) {
-    callback({success: true, data: reviewData.revisions[revId].comments});
-  } else {
-    loadComments(reviewData._number, revId, function(resp) {
-      if (!resp.success) {
-        callback(resp);
-      } else {
-        reviewData.revisions[revId].comments = resp.data;
-        callback(resp);
-      }
-    });
-  }
+  var rev = reviewData.revisions[revId];
+  var makePromise = function() {
+    return loadComments(reviewData._number, revId);
+  };
+  return loadAndCache(rev, "comments", makePromise).done(callback);
 }
 
-function loadComments(id, revId, callback) {
-  authenticatedSend({type: "loadComments", id: id, revId: revId}).done(callback);
+function loadComments(id, revId) {
+  return authenticatedSend({type: "loadComments", id: id, revId: revId});
 }
 
 function loadAndCacheFileContent(reviewData, revId, file, callback) {
-  var rev = reviewData.revisions[revId];
-  if (rev.files[file].content) {
-    callback({success: true, data: reviewData.revisions[revId].files[file].content});
-  } else {
-    loadFileContent(reviewData._number, revId, file, function(resp) {
-      if (!resp.success) {
-        callback(resp);
-      } else {
-        rev.files[file].content = resp.data;
-        callback(resp);
-      }
-    });
-  }
+  var fileObj = reviewData.revisions[revId].files[file];
+  var makePromise = function() {
+    return loadFileContent(reviewData._number, revId, file);
+  };
+  return loadAndCache(fileObj, "content", makePromise).done(callback);
 }
 
-function loadFileContent(id, revId, file, callback) {
-  authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file}).done(callback);
+function loadFileContent(id, revId, file) {
+  return authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file});
 }
 
 function renderError(text) {
