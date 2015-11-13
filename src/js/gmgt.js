@@ -362,7 +362,6 @@ function formatThread(reviewData) {
 
   function doFormat() {
     $(".Bk", $thread).not(".gerrit-formatted").each(function() {
-
       if ($(this).html().indexOf("gmail_quote") >= 0) {
         // someone sent this email directly; don't format.
         // TODO: we need a much better way of detecting this!
@@ -460,61 +459,67 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       } else {
         $toggle.text("Hide diffs");
         $box.show();
+        renderBox();
         $toggle.addClass("showing");
       }
     }).appendTo($container);  
 
   var $box = $("<div/>").appendTo($container).hide();
 
-  var files = reviewData.revisions[revId].files;
-  for (var file in files) {
-    if (file == "/COMMIT_MSG") {
-      continue;
+  function renderBox() {
+    if ($box.data("gerrit-rendered")) {
+      return;
     }
-    renderFileBox(reviewData, revId, file, baseId).appendTo($box);
-  }
-
-  var $comment = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
-  var $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-  var replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
-  replyWidget.getWidget().addClass("primary").appendTo($box);
-
-  $box.on("dblclick", ".gerrit-commentable", function() {
-    replyWidget.open(false);
-  });
-
-  function collectAndSubmitComments(approve) {
-    var review = {};
-    if (replyWidget.getText().length > 0) {
-      review.message = replyWidget.getText();
+    $box.data("gerrit-rendered", true);
+    var files = reviewData.revisions[revId].files;
+    for (var file in files) {
+      if (file == "/COMMIT_MSG") {
+        continue;
+      }
+      renderFileBox(reviewData, revId, file, baseId).appendTo($box);
     }
-    if (approve) {
-      review.labels = {'Code-Review': 2};
-    }
-    $(".gerrit-reply-box.inlined textarea.gerrit-reply", $box).each(function() {
-      var comment = $.trim($(this).val());
-      if (comment.length == 0) {
-        return;
-      }
-      var file = $(this).data("file");
-      if (!("comments" in review)) {
-        review.comments = {};
-      }
-      if (!(file in review.comments)) {
-        review.comments[file] = [];
-      }
-      review.comments[file].push({line: $(this).data("line"), side: $(this).data("side"), message: comment});
+  
+    var $comment = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+    var $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+    var replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
+    replyWidget.getWidget().addClass("primary").appendTo($box);
+  
+    $box.on("dblclick", ".gerrit-commentable", function() {
+      replyWidget.open(false);
     });
-
-    submitComments(reviewData._number, revId, review, function(resp) {
-      if (resp.success) {
-        $(".gerrit-reply-box", $box).detach();
-        replyWidget.close(true);
+  
+    function collectAndSubmitComments(approve) {
+      var review = {};
+      if (replyWidget.getText().length > 0) {
+        review.message = replyWidget.getText();
       }
-      performActionCallback(reviewData._number, resp);
-    });
-  }
-
+      if (approve) {
+        review.labels = {'Code-Review': 2};
+      }
+      $(".gerrit-reply-box.inlined textarea.gerrit-reply", $box).each(function() {
+        var comment = $.trim($(this).val());
+        if (comment.length == 0) {
+          return;
+        }
+        var file = $(this).data("file");
+        if (!("comments" in review)) {
+          review.comments = {};
+        }
+        if (!(file in review.comments)) {
+          review.comments[file] = [];
+        }
+        review.comments[file].push({line: $(this).data("line"), side: $(this).data("side"), message: comment});
+      });
+  
+      submitComments(reviewData._number, revId, review, function(resp) {
+        if (resp.success) {
+          $(".gerrit-reply-box", $box).detach();
+          replyWidget.close(true);
+        }
+        performActionCallback(reviewData._number, resp);
+      });
+    }
+  }  
   return $container;
 }
 
