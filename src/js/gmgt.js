@@ -1656,36 +1656,44 @@ function checkThreads() {
       }
       annotateThreads($subjects, resp.data);
     }
-    console.log("Loading data...");
     authenticatedSend({type: "loadChanges"}).done(callback);
   }
   setTimeout(checkThreads, 5000);
 }
 
 function annotateThreads($subjects, changes) {
+  function changeSubject(change) {
+    var str = change.project + "[" + change.branch + "]: " + change.subject;
+    if (str.length > 84) {
+      str = str.substring(0, 81) + "...";
+    }
+    return str;
+  }
+  var subjectToChange = _.object(changes.map(function(change) {
+    return [changeSubject(change), change];
+  }));
   for (var i=0; i<$subjects.length; i++) {
     var $subject = $($subjects[i]);
     if ($subject.data("gerrit-thread-seen") && !$subject.data("gerrit-thread-annotated")) {
-      console.log("Skipping seen but not gerrit: ", $subject.text());
+      //console.log("Skipping seen but not gerrit: ", $subject.text());
       continue;
     }
     $subject.data("gerrit-thread-seen", true);
     var text = $subject.text();
-    for (var j=0; j<changes.length; j++) {
-      if (text.indexOf(changes[j].subject) >= 0) {
-        $subject.data("gerrit-thread-annotated", true);
-        annotateSubject($subject, changes[j]);
-      }
+    var change = subjectToChange[text];
+    if (change) {
+      $subject.data("gerrit-thread-annotated", true);
+      annotateSubject($subject, change);      
     }
   }
 }
 
 function annotateSubject($subject, change) {
-  console.log("Annotating '" + change.subject + "'", $subject);
+  //console.log("Annotating '" + change.subject + "'", $subject);
   var $button = $(".gerrit-threadlist-button", $subject.closest("td"));
   var $status;
   if ($button.length > 0) {
-    console.log("Already annotated; reusing");
+    // console.log("Already annotated; reusing", $button);
     $status = $(".gerrit-threadlist-span", $button);
   } else {
     var $parentLink = $subject.closest("div[role='link']");
