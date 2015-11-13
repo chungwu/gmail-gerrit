@@ -40,6 +40,12 @@ a.gerrit-button {
   color: #444 !important;
 }
 
+.gerrit-button.error-button {
+  background: none;
+  background-color: #FF5722 !important;  
+  color: white !important;
+}
+
 a.gerrit-button:hover {
   text-decoration: none;
 }

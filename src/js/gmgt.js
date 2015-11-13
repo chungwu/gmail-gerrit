@@ -23,6 +23,7 @@ var infoBox = (
     "</div>" +
     "<div>" +
       "<span class='gerrit-button view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>View</span>" +
+      "<a class='gerrit-button error-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO red' target='_blank'>See Error</a>" +
       "<span class='gerrit-button comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Comment</span>" +
     "</div>" +
     "<div>" +
@@ -178,6 +179,16 @@ function renderBox(id, data) {
       $(".approve-submit-button", $info).show();
     } else if (isReviewer) {
       $(".approve-comment-button", $info).show();
+    }
+  }
+
+  $(".error-button", $info).hide();
+  if (status == "Failed Verify") {
+    var lastFailedMessageIndex = _.findLastIndex(data.messages, function(m) {return m.message.indexOf("Build Failed") >= 0;});
+    if (lastFailedMessageIndex >= 0) {
+      var failedMessage = data.messages[lastFailedMessageIndex].message;
+      var link = linkify.find(failedMessage)[0].href;
+      $(".error-button", $info).prop("href", link + "console").show();
     }
   }
 
