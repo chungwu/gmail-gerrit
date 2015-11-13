@@ -1571,7 +1571,7 @@ function initialize() {
 
     if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
       // Email is set and is not the current gmail account; forget it
-      console.log("Expecting gmail " + settings.gmail + " but not found; nevermind!");
+      console.log("Expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
       return;
     }
 
