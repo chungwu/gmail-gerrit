@@ -421,7 +421,7 @@ function formatNewChange($card, $msg, text, reviewData) {
   var message = extractCommitMessage(revision.commit);
   var messageLines = message.split("\n");
   for (var i = 0; i < messageLines.length; i++) {
-    var $line = $("<div/>").text(messageLines[i] + "\xA0").appendTo($header);
+    var $line = $("<div/>").html(linkifyStr(messageLines[i] + "\xA0")).appendTo($header);
     if (i == 0) {
       $line.addClass("gerrit-header");
     }
@@ -1057,7 +1057,7 @@ function formatComment($card, $msg, text, reviewData) {
     var $header = $("<div/>").appendTo($commentsBox);
     for (var i = 0; i < messageComments.message.length; i++) {
       var ptext = messageComments.message[i];
-      var $line = $("<p/>").text(ptext);
+      var $line = $("<p/>").html(linkifyStr(ptext));
       if (i == 0) {
         $line.addClass("gerrit-header");
       }
