@@ -129,6 +129,7 @@ a.gerrit-button:hover {
   margin: 0;
   line-height: 1.3em;
   font-family: monospace;
+  font-size: 12px;
 }
 
 .gerrit-line.gerrit-line-empty {
@@ -273,7 +274,7 @@ textarea.gerrit-reply {
 
 .gerrit-threadlist-button--success {
   background: none !important;
-  background-color: #8BC34A !important;
+  background-color: #4CAF50 !important;
 }
 .gerrit-threadlist-button--success .gerrit-threadlist-span {
   color: white !important;
