@@ -225,48 +225,56 @@ function renderChange(id) {
     formatThread(data);
   }
 
-  authenticatedSend({type: "loadChange", id: id}, callback);
+  authenticatedSend({type: "loadChange", id: id}).done(callback);
 }
 
-function authenticatedSend(msg, callback) {
-  function authenticatingCallback(resp) {
-    if (!resp.success && resp.status == 401) {
-      showNeedLogin();
-      gSettings.auth = false;
-    }
-    if (resp.success) {
-      hidePageAction();
-    }
-    console.log("Function call:", msg);
-    console.log("Result:", resp);
-    callback(resp);
-  }
-  if (!gSettings.auth) {
-    console.log("Not authenticated yet, trying to authenticate...");
-    authenticate(function(resp) {
+function authenticatedSend(msg) {
+  function authAndSend() {
+    return authenticate().then(function(resp) {
       if (resp.success) {
-        chrome.runtime.sendMessage(msg, authenticatingCallback);
+        return sendMessage(msg);
       } else {
         console.log("Still failed to authenticate :'(");
-        showNeedLogin();
-        authenticatingCallback({success: false, err_msg: "Cannot authenticate"});
+        return {success: false, err_msg: "Cannot authenticate"};
       }
     });
-  } else {
-    chrome.runtime.sendMessage(msg, authenticatingCallback);
   }
+
+  if (!gSettings.auth) {
+    console.log("Not authenticated! authenticate first...");
+    return authAndSend();
+  } else {
+    return sendMessage(msg).then(function(resp) {
+      if (!resp.success && resp.status == 401) {
+        console.log("Send failed; try to authenticate again");
+        return authAndSend();
+      } else {
+        return resp;
+      }
+    });
+  }  
+}
+
+function sendMessage(msg) {
+  var deferred = $.Deferred();
+  console.log("Function call:", msg);
+  chrome.runtime.sendMessage(msg, function(resp) {
+    console.log("Function result!", resp);
+    deferred.resolve(resp);
+  });
+  return deferred.promise();
 }
 
 function loadChange(id, callback) {
-  authenticatedSend({type: "loadChange", id: id}, callback);
+  authenticatedSend({type: "loadChange", id: id}).done(callback);
 }
 
 function loadFiles(id, revId, callback) {
-  authenticatedSend({type: "loadFiles", id: id, revId: revId}, callback);
+  authenticatedSend({type: "loadFiles", id: id, revId: revId}).done(callback);
 }
 
 function loadDiff(id, revId, file, baseId, callback) {
-  authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId}, callback);
+  authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId}).done(callback);
 }
 
 function loadAndCacheDiff(reviewData, revId, file, baseId, callback) {
@@ -305,7 +313,7 @@ function loadAndCacheComments(reviewData, revId, callback) {
 }
 
 function loadComments(id, revId, callback) {
-  authenticatedSend({type: "loadComments", id: id, revId: revId}, callback);
+  authenticatedSend({type: "loadComments", id: id, revId: revId}).done(callback);
 }
 
 function loadAndCacheFileContent(reviewData, revId, file, callback) {
@@ -325,7 +333,7 @@ function loadAndCacheFileContent(reviewData, revId, file, callback) {
 }
 
 function loadFileContent(id, revId, file, callback) {
-  authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file}, callback);
+  authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file}).done(callback);
 }
 
 function renderError(text) {
@@ -1463,38 +1471,40 @@ function clearDiff() {
 }
 
 function hidePageAction() {
-  chrome.runtime.sendMessage({type: "hidePageAction"});
+  sendMessage({type: "hidePageAction"});
 }
 
 function showNeedSetup() {
-  chrome.runtime.sendMessage({type: "showSetup"});
+  sendMessage({type: "showSetup"});
 }
 
 function showNeedLogin() {
-  chrome.runtime.sendMessage({type: "showLogin"});
+  sendMessage({type: "showLogin"});
 }
 
 function loadSettings(callback) {
-  chrome.runtime.sendMessage({type: "settings"}, callback);
+  sendMessage({type: "settings"}).then(callback);
 }
 
-function authenticate(callback) {
-  chrome.runtime.sendMessage({type: "authenticate"}, function(resp) {
+function authenticate() {
+  return sendMessage({type: "authenticate"}).then(function(resp) {
     if (resp.success) {
       gSettings.auth = true;
       gSettings.email = resp.email;
       gSettings.user = resp.user;
+      hidePageAction();
     } else {
       gSettings.auth = false;
       gSettings.email = undefined;
       gSettings.user = undefined;
+      showNeedLogin();
     }
-    callback(resp);
+    return resp;
   });
 }
 
 function viewDiff(id) {
-  chrome.runtime.sendMessage({type: "viewDiff", id: id});  
+  sendMessage({type: "viewDiff", id: id});  
 }
 
 function commentDiff(id, approve, comment, callback) {
@@ -1505,7 +1515,7 @@ function commentDiff(id, approve, comment, callback) {
       return;
     }
   }
-  authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText}, callback);
+  authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText}).done(callback);
 }
 
 function approveSubmitDiff(id, callback) {
@@ -1528,15 +1538,15 @@ function submitDiff(id, callback) {
       callback(resp);
     }
   }
-  authenticatedSend({type: "submitDiff", id: id}, submitCallback);
+  authenticatedSend({type: "submitDiff", id: id}).done(submitCallback);
 }
 
 function rebaseChange(id, callback) {
-  authenticatedSend({type: "rebaseChange", id: id}, callback);
+  authenticatedSend({type: "rebaseChange", id: id}).done(callback);
 }
 
 function submitComments(id, revId, review, callback) {
-  authenticatedSend({type: "submitComments", id: id, revId: revId, review: review}, callback);
+  authenticatedSend({type: "submitComments", id: id, revId: revId, review: review}).done(callback);
 }
 
 function rebaseSubmitChange(id, callback) {
@@ -1544,7 +1554,7 @@ function rebaseSubmitChange(id, callback) {
     if (!resp.success) {
       callback(resp);
     } else {
-      authenticatedSend({type: "submitDiff", id: id}, callback);
+      authenticatedSend({type: "submitDiff", id: id}).done(callback);
     }
   }
   rebaseChange(id, rebaseCallback);
@@ -1625,6 +1635,7 @@ function checkPage() {
   if (mode == "thread") {
     checkDiff();
   } else if (mode == "threadlist") {
+    clearDiff();
     checkThreads();
   } else {
     clearDiff();
@@ -1647,7 +1658,7 @@ function checkThreads() {
       annotateThreads($subjects, resp.data);
     }
     console.log("Loading data...");
-    authenticatedSend({type: "loadChanges"}, callback);
+    authenticatedSend({type: "loadChanges"}).done(callback);
   }
   setTimeout(checkThreads, 5000);
 }
