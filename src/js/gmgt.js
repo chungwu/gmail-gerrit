@@ -1345,7 +1345,7 @@ function guessNewPatchBase(pid, reviewData) {
       // Messages sent by Gerrit have no author
       continue;
     }
-    if (msg._revision_number < pid && msg.author.username != reviewData.owner.username) {
+    if (msg._revision_number < pid && msg.author.username != reviewData.owner.username && msg.author.username != "jenkins") {
       return msg._revision_number;
     }
   }
