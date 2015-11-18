@@ -1345,7 +1345,7 @@ function guessNewPatchBase(pid, reviewData) {
       // Messages sent by Gerrit have no author
       continue;
     }
-    if (msg._revision_number < pid && msg.author.username != reviewData.owner.username && msg.author.username != "jenkins") {
+    if (msg._revision_number < pid && msg.author.username != reviewData.owner.username && !isBot(msg.author.username)) {
       return msg._revision_number;
     }
   }
@@ -1437,7 +1437,7 @@ function reviewStatus(reviewData) {
   if (isOwner) {
     for (var i=reviewData.messages.length-1; i>=0; i--) {
       var message = reviewData.messages[i];
-      if (message.message.indexOf("rebased") >= 0 || message.author.username == "jenkins") {
+      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username)) {
         continue;
       } else if (message.author.email == gSettings.email) {
         return "Waiting";
@@ -1447,7 +1447,7 @@ function reviewStatus(reviewData) {
   } else if (isReviewer) {
     for (var i=reviewData.messages.length-1; i>=0; i--) {
       var message = reviewData.messages[i];
-      if (message.message.indexOf("rebased") >= 0 || message.author.username == "jenkins") {
+      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username)) {
         continue;
       } else if (message.author.email == gSettings.email) {
         return "Reviewed";
@@ -1563,6 +1563,7 @@ function initialize() {
   loadSettings(function(settings) {
     gSettings.url = settings.url;
     gSettings.contextLines = settings.contextLines;
+    gSettings.botNames = settings.botNames;
 
     if (!gSettings.url) {
       // No URL set; forget it
@@ -1747,6 +1748,10 @@ function checkDiff() {
       renderChange(id);
     }
   }
+}
+
+function isBot(username) {
+  return _.contains(gSettings.botNames || [], username);
 }
 
 function handleKeyPress(e) {

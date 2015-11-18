@@ -10,6 +10,8 @@ function save() {
 
   var context = _validateInt($("#context-lines").val());
 
+  var botNames = $("#bot-names").val();
+
   // var user = $("#user").val();
   // var password = $("#password").val();
   // if (!user || !password) {
@@ -20,6 +22,7 @@ function save() {
   localStorage['host'] = url;
   localStorage['gmail'] = gmail;
   localStorage['contextLines'] = context;
+  localStorage['botNames'] = botNames;
   
   // localStorage['user'] = user;
   // localStorage['password'] = password;
@@ -62,6 +65,7 @@ function load() {
   //$("#password").val(localStorage['password']);
   $("#gmail").val(localStorage['gmail']);
   $("#context-lines").val(localStorage['contextLines'] || "3");
+  $("#bot-names").val(localStorage['botNames'] || "jenkins");
 }
 
 function init() {

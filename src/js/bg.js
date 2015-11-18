@@ -320,7 +320,16 @@ function authenticate(callback) {
 }
 
 function loadSettings(callback) {
-  callback({url: gerritUrl(), gmail: gerritGmail(), contextLines: localStorage['contextLines'] || 3, user: user(), hasPassword: password() != ''});
+  var settings = {
+    url: gerritUrl(), 
+    gmail: gerritGmail(), 
+    contextLines: localStorage['contextLines'] || 3, 
+    user: user(), 
+    hasPassword: password() != '',
+    botNames: (localStorage['botNames'] || "jenkins").split(",").map(function(x) { return x.trim();})
+  };
+  callback(settings);
+  return true;
 }
 
 function getPopup() {
