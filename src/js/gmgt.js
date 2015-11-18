@@ -1691,21 +1691,27 @@ function annotateThreads($subjects, changes) {
 function annotateSubject($subject, change) {
   //console.log("Annotating '" + change.subject + "'", $subject);
   var $button = $(".gerrit-threadlist-button", $subject.closest("td"));
-  var $status;
+  var $status, $topic;
   if ($button.length > 0) {
     // console.log("Already annotated; reusing", $button);
-    $status = $(".gerrit-threadlist-span", $button);
+    $status = $(".gerrit-threadlist-status", $button);
+    $topic = $(".gerrit-threadlist-topic", $button);
   } else {
     var $parentLink = $subject.closest("div[role='link']");
-    $parentLink.wrap("<div class='a4X' style='padding-right:15ex;'/>");
+    $parentLink.wrap("<div class='a4X' style='padding-right:30ex;'/>");
     var $panel = $("<span/>").addClass("aKS").insertAfter($parentLink);
     var $button = $("<div/>").addClass("T-I J-J5-Ji aOd aS9 T-I-awv L3 gerrit-threadlist-button").prop("role", "button").click(function() { viewDiff(change._number); }).appendTo($panel);
     $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
-    var $status = $("<span/>").addClass("aJ6 gerrit-threadlist-span").appendTo($button);
+    $status = $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-status").appendTo($button);
+    $topic = $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-topic").appendTo($button);
   }
 
   var status = reviewStatus(change);
   $status.text(status);
+
+  if (change.topic) {
+    $topic.text(" [" + change.topic + "]");
+  }
 
   var isOwner = isChangeOwner(change);
 
@@ -1727,6 +1733,9 @@ function annotateSubject($subject, change) {
   if (["To Review", "To Respond"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--action");
   }
+
+  var $wrapper = $subject.closest(".a4X");
+  $wrapper.css("padding-right", $button.outerWidth() + 10 + "px");
 }
 
 function checkDiff() {
