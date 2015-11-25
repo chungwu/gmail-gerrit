@@ -1374,27 +1374,6 @@ function getLabelStatus(reviewData, label) {
   }
 }
 
-function isVerifiedRejected(reviewData) {
-  if (!reviewData.labels || !reviewData.labels['Verified']) {
-    return false;
-  }
-  var reviewObj = reviewData.labels['Verified'];
-  if (reviewObj.approved) {
-    return false;
-  }
-  if (reviewObj.rejected) {
-    return true;
-  }
-  if (!reviewObj.all || reviewObj.all.length == 0) return false;
-  var reviews = reviewObj.all;
-  for (var i=0; i < reviews.length; i++) {
-    if (reviews[i].value < 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
 function isChangeOwner(change) {
   return gSettings.email == change.owner.email;
 }
@@ -1432,7 +1411,9 @@ function reviewStatus(reviewData) {
   var verified = getLabelStatus(reviewData, 'Verified');
   if (verified < 0) {
     return "Failed Verify";
-  } 
+  } else if (verified == 0) {
+    return "Unverified";
+  }
 
   if (isOwner) {
     for (var i=reviewData.messages.length-1; i>=0; i--) {
@@ -1716,7 +1697,7 @@ function annotateSubject($subject, change) {
 
   var isOwner = isChangeOwner(change);
 
-  if (["Merged", "Abandoned", "Merge Pending", "Reviewed", "Waiting"].indexOf(status) >= 0) {
+  if (["Merged", "Abandoned", "Merge Pending", "Reviewed", "Waiting", "Unverified"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--muted");
   } 
   if (["Approved"].indexOf(status) >= 0) {
