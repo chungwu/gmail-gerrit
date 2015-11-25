@@ -104,7 +104,7 @@ function initializeAuth(callback) {
     window.xhr = xhr;
     callback({success: false, err_msg: "Cannot authenticate"});
   }
-  $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 1000});
+  $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 5000});
 }
 
 function loadChanges(callback) {
