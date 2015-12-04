@@ -382,12 +382,6 @@ function formatThread(reviewData) {
   }
 
   doFormat();
-
-  if (gSettings.email != reviewData.owner.email) {
-    // Not my commit, so show me the last diff
-    var $diffs = $(".show-diffs-button", $thread);
-    $($diffs[$diffs.length-1]).click();
-  }
 }
 
 function formatCard($card, reviewData) {
@@ -464,12 +458,16 @@ function renderRevisionDiff(reviewData, revId, baseId) {
         $box.hide();
         $toggle.removeClass("showing");
       } else {
-        $toggle.text("Hide diffs");
-        $box.show();
-        renderBox();
-        $toggle.addClass("showing");
+        showBox();
       }
     }).appendTo($container);  
+
+  function showBox() {
+    $toggle.text("Hide diffs");
+    $box.show();
+    renderBox();
+    $toggle.addClass("showing");
+  }
 
   var $box = $("<div/>").appendTo($container).hide();
 
@@ -527,6 +525,15 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       });
     }
   }  
+
+  // if this is the last revision, then show its diffs if not own review
+  if (gSettings.email != reviewData.owner.email) {
+    var maxRevId = _.max(_.pairs(reviewData.revisions), function(p) { return p[1]._number; })[0];
+    if (maxRevId == revId) {
+      showBox();
+    }
+  }  
+
   return $container;
 }
 
