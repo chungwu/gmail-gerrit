@@ -1408,13 +1408,6 @@ function reviewStatus(reviewData) {
     return 'Merge Pending';
   } 
 
-  var approved = getLabelStatus(reviewData, 'Code-Review');
-  if (approved == 2) {
-    return 'Approved';
-  } else if (approved < 0) {
-    return "Rejected";
-  }
-  
   var verified = getLabelStatus(reviewData, 'Verified');
   if (verified < 0) {
     return "Failed Verify";
@@ -1422,6 +1415,13 @@ function reviewStatus(reviewData) {
     return "Unverified";
   }
 
+  var approved = getLabelStatus(reviewData, 'Code-Review');
+  if (approved == 2) {
+    return 'Approved';
+  } else if (approved < 0) {
+    return "Rejected";
+  }
+  
   if (isOwner) {
     for (var i=reviewData.messages.length-1; i>=0; i--) {
       var message = reviewData.messages[i];
@@ -1429,9 +1429,11 @@ function reviewStatus(reviewData) {
         continue;
       } else if (message.author.email == gSettings.email) {
         return "Waiting";
+      } else {
+        return "To Respond";
       }
     }
-    return "To Respond";
+    return "Waiting";
   } else if (isReviewer) {
     for (var i=reviewData.messages.length-1; i>=0; i--) {
       var message = reviewData.messages[i];
