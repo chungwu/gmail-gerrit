@@ -32,7 +32,7 @@ function save() {
 }
 
 function _validateEmail(email) {
-  if (email.indexOf("@") < 0) {
+  if (email && email.indexOf("@") < 0) {
     alert("Invalid email: " + email);
     return false;
   }
