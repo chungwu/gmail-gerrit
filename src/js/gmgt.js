@@ -184,11 +184,14 @@ function renderBox(id, data) {
 
   $(".error-button", $info).hide();
   if (status == "Failed Verify") {
-    var lastFailedMessageIndex = _.findLastIndex(data.messages, function(m) {return m.message.indexOf("Build Failed") >= 0;});
+    var lastFailedMessageIndex = _.findLastIndex(data.messages, function(m) {return isBot(m.author.username) && m.message.indexOf("Verified-1") >= 0;});
     if (lastFailedMessageIndex >= 0) {
       var failedMessage = data.messages[lastFailedMessageIndex].message;
-      var link = linkify.find(failedMessage)[0].href;
-      $(".error-button", $info).prop("href", link + "console").show();
+      var links = linkify.find(failedMessage);
+      if (links.length > 0) {
+        var link = links[0].href;
+        $(".error-button", $info).prop("href", link).show();
+      }
     }
   }
 
