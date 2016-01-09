@@ -88,23 +88,36 @@ function _extractRe(re, text) {
   return match ? match[1] : undefined;
 }
 
-function initializeAuth(callback) {
-  function onSuccess(data, textStatus, xhr) {
-    _GERRIT_AUTH = _extractRe(_RE_AUTH, data);
-    var user = _extractRe(_RE_USER, data);
-    var email = _extractRe(_RE_EMAIL, data);
-    console.log("User: " + user + ", email: " + email + ", auth: " + _GERRIT_AUTH);
-    if (_GERRIT_AUTH && user && email) {
-      callback({success: true, user: user, email: email});
+function initializeAuth() {
+  return $.ajax(gerritUrl(), {timeout: 5000}).then(function (data) {
+    console.log("INITIAL DATA", data);
+    var auth = _extractRe(_RE_AUTH, data);
+    if (auth) {
+      var email = _extractRe(_RE_EMAIL, data);    
+      _GERRIT_AUTH = auth;
+      return {email: email};
     } else {
-      callback({success: false, err_msg: "Cannot authenticate"});
+      console.log("Failed to extract XSRF token from html; attempting to read from cookie");
+      var d = $.Deferred()
+      wrapChromeCall(chrome.cookies.get, [{url: gerritUrl(), name: "XSRF_TOKEN"}]).then(function (resp) {
+        if (!resp || !resp.value) {
+          console.log("Failed to read XSRF_TOKEN from cookie :-/");
+          d.reject();
+        } else {
+          _GERRIT_AUTH = resp.value;
+          ajax("/accounts/self/detail", function(resp) {
+            console.log("ACCOUNT DETAILS", resp);
+            if (resp.success) {
+              d.resolve({email: resp.data.email});
+            } else {
+              d.reject();
+            }
+          });
+        }
+      });
+      return d.promise();
     }
-  }
-  function onError(xhr, textStatus, errorThrown) {
-    window.xhr = xhr;
-    callback({success: false, err_msg: "Cannot authenticate"});
-  }
-  $.ajax(gerritUrl(), {success: onSuccess, error: onError, timeout: 5000});
+  });
 }
 
 function loadChanges(callback) {
@@ -185,13 +198,11 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
   function onError(xhr, textStatus, errorThrown) {
     if (xhr.status == 403) {
       console.log("403!  Try getting auth again");
-      initializeAuth(function(resp) {
-        if (!resp.success) {
-          callback({success: false, status: xhr.status, err_msg: xhr.responseText});
-        } else {
-          console.log("Re-issuing ajax call using new token...");
-          ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType);
-        }
+      initializeAuth().done(function() {
+        console.log("Re-issuing ajax call using new token...");
+        ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType);
+      }).fail(function() {
+        callback({success: false, err_msg: "Cannot authenticate"});
       });
     } else {
       err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
@@ -223,7 +234,7 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
     console.log("Collapsing calls", key);
     _outstandingRequests[key].done(onSuccess).fail(onError);
   } else {
-    _outstandingRequests[key] = $.ajax(gerritUrl() + "/a" + uri, settings)
+    _outstandingRequests[key] = $.ajax(gerritUrl() + uri, settings)
       .done(onSuccess)
       .fail(onError)
       .always(function() { delete _outstandingRequests[key]; });
@@ -315,7 +326,12 @@ function password() {
 }
 
 function authenticate(callback) {
-  initializeAuth(callback);
+  initializeAuth().done(function(result) {
+    console.log("email: " + result.email + ", auth: " + _GERRIT_AUTH);
+    callback({success: true, email: result.email});
+  }).fail(function() {
+    callback({success: false, err_msg: "Cannot authenticate"});
+  });
   return true;
 }
 
@@ -342,4 +358,13 @@ function getPopup() {
     }
   }
   return null;
+}
+
+function wrapChromeCall(func, args) {
+  var deferred = $.Deferred();
+  var callback = function (resp) {
+    deferred.resolve(resp);
+  };
+  func.apply(null, args.concat([callback]));
+  return deferred.promise();
 }

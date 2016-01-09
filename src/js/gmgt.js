@@ -1480,12 +1480,10 @@ function authenticate() {
     if (resp.success) {
       gSettings.auth = true;
       gSettings.email = resp.email;
-      gSettings.user = resp.user;
       hidePageAction();
     } else {
       gSettings.auth = false;
       gSettings.email = undefined;
-      gSettings.user = undefined;
       showNeedLogin();
     }
     return resp;

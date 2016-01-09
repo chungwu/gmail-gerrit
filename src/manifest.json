@@ -26,7 +26,7 @@
     "default_popup": "popup.html"
   },
   "permissions": [
-    "tabs", "http://mail.google.com/", "https://mail.google.com/", "http://*/", "https://*/"
+    "cookies", "tabs", "http://mail.google.com/", "https://mail.google.com/", "http://*/", "https://*/"
   ],
   "web_accessible_resources": [
     "icons/gerrit-big.png",
