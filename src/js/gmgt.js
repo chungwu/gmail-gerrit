@@ -1414,7 +1414,7 @@ function reviewStatus(reviewData) {
   var verified = getLabelStatus(reviewData, 'Verified');
   if (verified < 0) {
     return "Failed Verify";
-  } else if (verified == 0) {
+  } else if (verified == 0 && reviewData.labels.Verified && !reviewData.labels.Verified.optional) {
     return "Unverified";
   }
 
