@@ -1656,11 +1656,17 @@ function checkThreads() {
 
 function annotateThreads($subjects, changes) {
   function changeSubject(change) {
-    var str = change.project + "[" + change.branch + "]: " + change.subject;
-    if (str.length > 84) {
-      str = str.substring(0, 81) + "...";
+    return change.project + "[" + change.branch + "]: " + change.subject;
+  }
+  function findChange(text) {
+    for (var i=0; i<changes.length; i++) {
+      var change = changes[i];
+      var subject = changeSubject(change).substring(0, 50);
+      if (text.indexOf(subject) >= 0) {
+        return change;
+      }
     }
-    return str;
+    return null;
   }
   var subjectToChange = _.object(changes.map(function(change) {
     return [changeSubject(change), change];
@@ -1673,7 +1679,7 @@ function annotateThreads($subjects, changes) {
     }
     $subject.data("gerrit-thread-seen", true);
     var text = $subject.text();
-    var change = subjectToChange[text];
+    var change = findChange(text);
     if (change) {
       $subject.data("gerrit-thread-annotated", true);
       annotateSubject($subject, change);      
