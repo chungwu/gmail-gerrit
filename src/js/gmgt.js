@@ -17,7 +17,7 @@ var infoBox = (
         "None" +
       "{%else%}" +
         "{%each(i, reviewer) reviewers%}" +
-          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : reviewer.labels.join(',').indexOf(\"Code-Review-\") >= 0 ? \"reviewer-approved-failed\" : reviewer.labels.join(',').indexOf(\"Verified-\") >= 0 ? \"reviewer-verified-failed\" : \"\"}'>${reviewer.login}</span>" +
+          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : reviewer.labels.join(',').indexOf(\"Code-Review-\") >= 0 ? \"reviewer-approved-failed\" : reviewer.labels.join(',').indexOf(\"Verified-\") >= 0 ? \"reviewer-verified-failed\" : \"\"}'>${reviewer.name || reviewer.login}</span>" +
         "{%/each%}" +
       "{%/if%}" +
     "</div>" +
@@ -60,34 +60,35 @@ function extractReviewers(data) {
   var reviewers = {};
   function mkrev(rev) {
     return {
-      name: rev.name, email: rev.email, login: rev.username,
+      name: rev.name, email: rev.email, login: reviewerKey(rev),
       self: rev.email == gSettings.email, labels: []
     };
   }
-  if (data.labels && data.labels["Code-Review"] && data.labels["Code-Review"].all) {
-    for (var i=0; i<data.labels["Code-Review"].all.length; i++) {
-      var rev = data.labels["Code-Review"].all[i];
-      var reviewer = rev.username in reviewers ? reviewers[rev.username] : mkrev(rev);
-      if (rev.value != 0) {
-        reviewer.labels.push(labeledValue("Code-Review", rev.value));
+  function reviewerKey(rev) {
+    return rev.username || rev.email;
+  }
+  function addReviewersForLabel(label) {
+    if (data.labels && data.labels[label] && data.labels[label].all) {
+      for (var i=0; i<data.labels[label].all.length; i++) {
+        var rev = data.labels[label].all[i];
+        var rk = reviewerKey(rev);
+        var reviewer = rk in reviewers ? reviewers[rk] : mkrev(rev);
+        if (rev.value != 0) {
+          reviewer.labels.push(labeledValue(label, rev.value));
+        }
+        reviewers[rk] = reviewer;
       }
-      reviewers[reviewer.login] = reviewer;
     }
   }
-  if (data.labels && data.labels["Verified"] && data.labels["Verified"].all) {
-    for (var i=0; i<data.labels["Verified"].all.length; i++) {
-      var rev = data.labels["Verified"].all[i];
-      var reviewer = rev.username in reviewers ? reviewers[rev.username] : mkrev(rev);
-      if (rev.value != 0) {
-        reviewer.labels.push(labeledValue("Verified", rev.value));
-      }
-      reviewers[reviewer.login] = reviewer;
-    }
+  var allLabels = _.keys(data.labels);
+  for (var i=0; i < allLabels.length; i++) {
+    addReviewersForLabel(allLabels[i]);
   }
   for (var i = 0; i < data.removable_reviewers.length; i++) {
     var rev = data.removable_reviewers[i];
-    if (!rev.username in reviewers) {
-      reviewers[reviewer.login] = mkrev(rev);
+    var rk = reviewerKey(rev);
+    if (!rk in reviewers) {
+      reviewers[rk] = mkrev(rev);
     }
   }
   console.log("REVIEWERS", reviewers);
