@@ -171,7 +171,7 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
   var settings = {
     dataType: dataType,
     dataFilter: function(data) { return dataType == "json" ? data.substring(4) : data; },
-    timeout: 3000
+    timeout: 60000
   };
   if (opt_opts) {
     $.extend(settings, opt_opts);
