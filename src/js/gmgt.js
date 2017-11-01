@@ -226,6 +226,10 @@ function renderChange(id) {
   var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
   $sideBox.empty().prependTo($sidebarBoxes);
 
+  // Show the actual sidebar, hidden by default
+  $(".Bu.y3").css("width", 220);
+  $(".nH.bno.adC").css("position", "static").css("width", "auto");
+
   function callback(resp) {
     console.log("Loaded change", resp);
     if (!resp.success) {
