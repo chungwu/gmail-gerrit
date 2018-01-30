@@ -1013,6 +1013,7 @@ function formatComment($card, $msg, text, reviewData) {
 
   var $commentsBox = $("<div/>");
   var lineReplyWidgets = [];
+  var messageReplyWidget = null;
 
   loadMessageComments($card, text, reviewData, revId, function(resp) {
     if (!resp.success) {
@@ -1022,7 +1023,7 @@ function formatComment($card, $msg, text, reviewData) {
       $msg.append($commentsBox);
       var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
       var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-      var messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
+      messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
       messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
       appendMessageComments(resp.data);
     }
@@ -1599,7 +1600,7 @@ function initialize() {
       return;
     }
 
-    console.log("Running Gerrit plugin! DEV YO");
+    console.log("Running Gerrit plugin!");
 
     $(window).hashchange(function() {
       setTimeout(checkPage, 100);
@@ -1798,5 +1799,5 @@ function handleKeyPress(e) {
 }
 
 $(function() {
-  setTimeout(initialize, 3000);
+  setTimeout(initialize, 10000);
 });
