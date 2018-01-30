@@ -99,12 +99,13 @@ function initializeAuth() {
     } else {
       console.log("Failed to extract XSRF token from html; attempting to read from cookie");
       var d = $.Deferred()
-      wrapChromeCall(chrome.cookies.get, [{url: gerritUrl(), name: "XSRF_TOKEN"}]).then(function (resp) {
-        if (!resp || !resp.value) {
+      wrapChromeCall(chrome.cookies.getAll, [{domain: new URL(gerritUrl()).hostname, name: "XSRF_TOKEN"}]).then(function (resp) {
+        if (!resp || resp.length == 0 || !resp[0].value) {
           console.log("Failed to read XSRF_TOKEN from cookie :-/");
           d.reject();
         } else {
-          _GERRIT_AUTH = resp.value;
+          _GERRIT_AUTH = resp[0].value;
+          console.log("Found XSRF token", _GERRIT_AUTH);
           ajax("/accounts/self/detail", function(resp) {
             console.log("ACCOUNT DETAILS", resp);
             if (resp.success) {
