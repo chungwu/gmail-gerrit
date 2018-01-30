@@ -982,7 +982,6 @@ RespondWidget.prototype.getWidget = function() {
 function formatComment($card, $msg, text, reviewData) {
   var pid = extractPatchSet(text);
   var revId = getRevisionIdByPatchNumber(reviewData, pid);
-  $msg.empty();
 
   // It is hard to use the REST API and figure out which comments belong to
   // this email message, since the comments we get from the REST API are just
@@ -1012,21 +1011,22 @@ function formatComment($card, $msg, text, reviewData) {
   });
   */
 
-  var $commentsBox = $("<div/>").appendTo($msg);
+  var $commentsBox = $("<div/>");
   var lineReplyWidgets = [];
 
   loadMessageComments($card, text, reviewData, revId, function(resp) {
     if (!resp.success) {
-      $commentsBox.append(renderError("Failed to load comments :'("));
+      console.log("Failed to load comments :'(");
     } else {
+      $msg.empty();
+      $msg.append($commentsBox);
+      var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+      var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+      var messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
+      messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
       appendMessageComments(resp.data);
     }
   });
-
-  var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
-  var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-  var messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
-  messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
 
   function appendMessageComments(messageComments) {
     id2comment = {}
@@ -1223,29 +1223,43 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
 
     gMsg = guessGerritMessage($card, text, revId, reviewData);
     console.log("MATCHED", gMsg);
-
-    var deferreds = [];
-    for (var file in allComments) {
-      deferreds.push(loadFileComments2(file, allComments));
-    }
-    $.when.apply($, deferreds).done(function() {
-      var resps = arguments;
-      var fileComments = [];
-      for (var i = 0; i < resps.length; i++) {
-        if (!resps[i].success) {
-          callback(resps[i]);
-          return;
-        } else {
-          fileComments.push(resps[i].data);
-        }
+    if (!gMsg) {
+      console.log("Failed to match " + revId, {text: text, reviewData: reviewData});
+      callback({success: false});
+    } else {
+      var deferreds = [];
+      for (var file in allComments) {
+        deferreds.push(loadFileComments2(file, allComments));
       }
-      callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}});
-    });
+      $.when.apply($, deferreds).done(function() {
+        var resps = arguments;
+        var fileComments = [];
+        for (var i = 0; i < resps.length; i++) {
+          if (!resps[i].success) {
+            callback(resps[i]);
+            return;
+          } else {
+            fileComments.push(resps[i].data);
+          }
+        }
+        callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}});
+      });
+    }
   });
 }
- 
+
 function crunch(string) {
   return $.trim(string.replace(/\s+/g, " "));
+}
+
+var RE_COMMENT_DATE = /Gerrit-Comment-Date: ([^+\n]+ \+\d\d\d\d)/;
+function extractGerritCommentDate(text) {
+  var result = RE_COMMENT_DATE.exec(text);
+  return result ? parseGerritDateString(result[1]) : null;
+}
+
+function parseGerritDateString(str) {
+  return new Date(Date.parse(str));
 }
 
 function guessGerritMessage($card, text, revId, reviewData) {
@@ -1254,6 +1268,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
   var pid = reviewData.revisions[revId]._number;
   var cardFrom = $("span.gD", $card).text();
   var allComments = reviewData.revisions[revId].comments;
+  var cardDate = extractGerritCommentDate(text).toString();
 
   var textCrunched = crunch(text);
   for (var i = reviewData.messages.length-1; i >= 0; i--) {
@@ -1265,17 +1280,23 @@ function guessGerritMessage($card, text, revId, reviewData) {
     if (msg._revision_number != pid) {
       continue;
     }
-    if (textCrunched.indexOf(crunch(msg.message)) < 0) {
-      continue;
-    }
-    /*
     if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
           cardFrom.indexOf(msg.author.email) >= 0 ||
           cardFrom.indexOf(msg.author.username) >= 0)) {
+      console.log("Failed to match by author", {cardFrom: cardFrom, msg: msg});
       continue;
     }
-    */
+    if (cardDate != new Date(Date.parse(msg.date + "+0000")).toString()) {
+      console.log("Failed to match by date", {cardDate: cardDate, msg: msg});      
+      continue;
+    }
+    /* This check doesn't work for HTML-formatted emails
+    if (textCrunched.indexOf(crunch(msg.message)) < 0) {
+      continue;
+    } 
+    */   
     if (allComments && !matchFileComments(msg)) {
+      console.log("Failed to match file comments!", {allComments: allComments, msg: msg});
       continue;
     }
 
@@ -1292,7 +1313,13 @@ function guessGerritMessage($card, text, revId, reviewData) {
       var comments = allComments[file];
       for (var c = 0; c < comments.length; c++) {
         var comment = comments[c];
-        if (comment.author.email == msg.author.email && comment.updated == msg.date && textCrunched.indexOf(crunch(comment.message)) < 0) {
+        if (comment.author.email == msg.author.email &&
+            comment.updated == msg.date &&
+            /* This doesn't work well for html-formatted emails
+            textCrunched.indexOf(crunch(comment.message)) < 0 &&
+            */
+            textCrunched.indexOf(file) < 0
+           ) {
           return false;
         }
       }
