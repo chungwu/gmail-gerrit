@@ -400,15 +400,15 @@ function formatCard($card, reviewData) {
     return;
   }
 
-  if (/^Gerrit-MessageType: newchange/gm.test(text)) {
+  if (/Gerrit-MessageType: newchange/gm.test(text)) {
     formatNewChange($card, $msg, text, reviewData);
-  } else if (/^Gerrit-MessageType: comment/gm.test(text)) {
+  } else if (/Gerrit-MessageType: comment/gm.test(text)) {
     formatComment($card, $msg, text, reviewData);
-  } else if (/^Gerrit-MessageType: merged/gm.test(text)) {
+  } else if (/Gerrit-MessageType: merged/gm.test(text)) {
     formatMerged($card, $msg, text, reviewData);
-  } else if (/^Gerrit-MessageType: merge-failed/gm.test(text)) {
+  } else if (/Gerrit-MessageType: merge-failed/gm.test(text)) {
     formatMergeFailed($card, $msg, text, reviewData);
-  } else if (/^Gerrit-MessageType: newpatchset/gm.test(text)) {
+  } else if (/Gerrit-MessageType: newpatchset/gm.test(text)) {
     formatNewPatch($card, $msg, text, reviewData);
   }
   $card.addClass("gerrit-formatted");
@@ -1281,12 +1281,17 @@ function guessGerritMessage($card, text, revId, reviewData) {
     if (msg._revision_number != pid) {
       continue;
     }
+    /* Matching by author is hard to get right.  The FROM name displayed in
+       Gerrit email may be totally different from the Gerrit user's name, email
+       address, or username.  Skipping this guard :-/
     if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
           cardFrom.indexOf(msg.author.email) >= 0 ||
+          cardFrom.indexOf((msg.author.email || "").split("@")[0]) >= 0 ||
           cardFrom.indexOf(msg.author.username) >= 0)) {
       console.log("Failed to match by author", {cardFrom: cardFrom, msg: msg});
       continue;
     }
+    */
     if (cardDate != new Date(Date.parse(msg.date + "+0000")).toString()) {
       console.log("Failed to match by date", {cardDate: cardDate, msg: msg});      
       continue;
