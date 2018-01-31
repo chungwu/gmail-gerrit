@@ -256,6 +256,25 @@ textarea.gerrit-reply {
   padding: 10px;
 }
 
+.gerrit-commentable {
+  position: relative;
+}
+
+.gerrit-add-comment {
+  position: absolute;
+  top: -3px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  z-index: 10;
+  display: none;
+}
+
+.gerrit-commentable:hover .gerrit-add-comment {
+  display: block;
+}
+
 .gerrit-threadlist-icon {
   display: inline-block;
   vertical-align: middle;

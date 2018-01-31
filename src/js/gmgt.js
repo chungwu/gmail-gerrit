@@ -495,10 +495,12 @@ function renderRevisionDiff(reviewData, revId, baseId) {
     var $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
     var replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
     replyWidget.getWidget().addClass("primary").appendTo($box);
-  
-    $box.on("dblclick", ".gerrit-commentable", function() {
+
+    var openReplyWidget = function() {
       replyWidget.open(false);
-    });
+    };
+    $box.on("dblclick", ".gerrit-commentable", openReplyWidget);
+    $box.on("click", ".gerrit-add-comment", openReplyWidget);
   
     function collectAndSubmitComments(approve) {
       var review = {};
@@ -629,7 +631,7 @@ function appendFileDiff($box, file, data) {
         // to comment on the "old" line, so we don't allow it
         return;
       }
-      $line.addClass("gerrit-commentable").dblclick(function() {
+      onAddComment = function() {
         if ($line.data("gerrit-textBox")) {
           $line.data("gerrit-textBox").focus();
         } else {
@@ -641,7 +643,9 @@ function appendFileDiff($box, file, data) {
           $textBox.focus();
           $line.data("gerrit-textBox", $textBox);
         }
-      });
+      };
+      $line.addClass("gerrit-commentable").dblclick(onAddComment);
+      var $addCommentButton = $("<img class='gerrit-add-comment'/>").prop("src", chrome.extension.getURL("icons/add-comment.png")).click(onAddComment).appendTo($line);
     }
 
     if (edits) {
