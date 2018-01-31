@@ -136,7 +136,12 @@ function loadChange(id, callback) {
 }
 
 function loadComments(id, revId, callback) {
-  ajax("/changes/" + id + "/revisions/" + revId + "/comments/", callback);
+  var url = "/changes/" + id;
+  if (revId) {
+    url += "/revisions/" + revId;
+  }
+  url += "/comments/";
+  ajax(url, callback);
   return true;
 }
 

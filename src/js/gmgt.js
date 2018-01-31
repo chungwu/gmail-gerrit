@@ -319,16 +319,15 @@ function loadAndCache(obj, prop, promiser) {
   return obj[promiseProp];
 }
 
-function loadAndCacheComments(reviewData, revId, callback) {
-  var rev = reviewData.revisions[revId];
+function loadAndCacheComments(reviewData, callback) {
   var makePromise = function() {
-    return loadComments(reviewData._number, revId);
+    return loadComments(reviewData._number);
   };
-  return loadAndCache(rev, "comments", makePromise).done(callback);
+  return loadAndCache(reviewData, "comments", makePromise).done(callback);
 }
 
-function loadComments(id, revId) {
-  return authenticatedSend({type: "loadComments", id: id, revId: revId});
+function loadComments(id) {
+  return authenticatedSend({type: "loadComments", id: id});
 }
 
 function loadAndCacheFileContent(reviewData, revId, file, callback) {
@@ -1112,7 +1111,7 @@ function formatComment($card, $msg, text, reviewData) {
         var comment = id2comment[lc.id];
         $("<br/>").appendTo($filebox);
         $("<pre class='gerrit-line'/>")
-          .text("Line " + comment.line + ": " + lc.lineContent)
+          .text((comment.patch_set != pid ? `PS ${comment.patch_set}, ` : "") + "Line " + comment.line + ": " + lc.lineContent)
           .addClass(comment.side == "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
           .appendTo($filebox);
 
@@ -1121,13 +1120,13 @@ function formatComment($card, $msg, text, reviewData) {
         var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
         lineReplyWidget.getWidget().appendTo($filebox);
         lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
-        lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id});
+        lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id, parent_patch_set: comment.patch_set});
       }
     }
   }
 
   function collectAndSubmitComments(approve) {
-    var review = {};
+    var review = {drafts: "PUBLISH_ALL_REVISIONS"};
     if (messageReplyWidget.getText().length > 0) {
       review.message = messageReplyWidget.getText();
     }
@@ -1143,7 +1142,13 @@ function formatComment($card, $msg, text, reviewData) {
         if (!(lw.file in review.comments)) {
           review.comments[lw.file] = [];
         }
-        review.comments[lw.file].push({line: lw.line, message: lw.widget.getText(), in_reply_to: lw.parent});
+        var newComment = {line: lw.line, message: lw.widget.getText(), in_reply_to: lw.parent};
+        if (lw.parent_patch_set != pid) {
+          // Whee bit of hackery; right now if unresolved is null and the parent is from a different patch set than the revision we're
+          // looking at, then Gerrit will throw up with "Invalid parentUuid supplied for comment".  So we force unresolved to true :-/
+          newComment.unresolved = true;
+        }
+        review.comments[lw.file].push(newComment);
       }
     }
     console.log("REVIEW", review);
@@ -1183,11 +1188,13 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
       } else {
         var fileComments = allComments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
         var content = _diffToContentLines(resp.data);
+        console.log("CONTENT", content);
         var lineComments = [];
         for (var i = 0; i < fileComments.length; i++) {
           var fc = fileComments[i];
-          var lineContent = fc.side == "PARENT" ? "(unavailable...)" : content[fc.line-1];
-          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side});
+          var isSamePatchSet = fc.patch_set == reviewData.revisions[revId]._number;
+          var lineContent = (!isSamePatchSet || fc.side == "PARENT") ? "(unavailable...)" : content[fc.line-1];
+          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
         }
         deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});        
       }
@@ -1215,13 +1222,13 @@ function loadMessageComments($card, text, reviewData, revId, callback) {
     return deferred;
   }
 
-  loadAndCacheComments(reviewData, revId, function(resp) {
+  loadAndCacheComments(reviewData, function(resp) {
     if (!resp.success) {
       callback(resp);
       return;
     }
     var allComments = resp.data;
-
+    console.log("Loaded comments", allComments);
     gMsg = guessGerritMessage($card, text, revId, reviewData);
     console.log("MATCHED", gMsg);
     if (!gMsg) {
@@ -1268,8 +1275,9 @@ function guessGerritMessage($card, text, revId, reviewData) {
   // Very fragile!  Surely there's a better way???
   var pid = reviewData.revisions[revId]._number;
   var cardFrom = $("span.gD", $card).text();
-  var allComments = reviewData.revisions[revId].comments;
+  var allComments = reviewData.comments;
   var cardDate = extractGerritCommentDate(text).toString();
+  console.log("Guessing for", {text: text, reviewData: reviewData});
 
   var textCrunched = crunch(text);
   for (var i = reviewData.messages.length-1; i >= 0; i--) {
@@ -1305,6 +1313,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
       console.log("Failed to match file comments!", {allComments: allComments, msg: msg});
       continue;
     }
+    console.log("Matched against", allComments);
 
     return msg;
   }
@@ -1324,6 +1333,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
             /* This doesn't work well for html-formatted emails
             textCrunched.indexOf(crunch(comment.message)) < 0 &&
             */
+            file != "/COMMIT_MSG" && 
             textCrunched.indexOf(file) < 0
            ) {
           return false;
