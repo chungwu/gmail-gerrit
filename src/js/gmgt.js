@@ -1,15 +1,15 @@
-var gSettings = {};
+const gSettings = {};
 
-var changeId = null;
-var re_rgid = new RegExp(".*/(\\d+)$");
+let changeId = null;
+const re_rgid = new RegExp(".*/(\\d+)$");
 
-var infoBoxHeader = (
+const infoBoxHeader = (
   "<h4><img title='Gerrit' src='${chrome.extension.getURL(\"icons/gerrit-big.png\")}'> <a href='${gerritUrl}/${diffId}' target='_blank'>${diffId}</a>: <span class='status'>${status}</span></h4>"
 );
 
 $.template("infoBoxHeader", infoBoxHeader);
 
-var infoBox = (
+const infoBox = (
   "<div>" +
     "<div class='note reviewers'>" +
       "<span class='note-title'>Reviewers: </span>" +
@@ -43,25 +43,25 @@ var infoBox = (
 
 $.template("infoBox", infoBox);
 
-var $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
+const $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
 
-var greenColor = "#045900";
-var redColor = "#b30000";
-var greenBg = "#D4FAD5";
-var redBg = "#FFD9D9";
+const greenColor = "#045900";
+const redColor = "#b30000";
+const greenBg = "#D4FAD5";
+const redBg = "#FFD9D9";
 
 function labeledValue(label, value) {
-  if (value == 0) { return undefined; }
+  if (value === 0) { return undefined; }
   else if (value > 0) { return label + "+" + value; }
   else { return label + value; }
 }
 
 function extractReviewers(data) {
-  var reviewers = {};
+  const reviewers = {};
   function mkrev(rev) {
     return {
       name: rev.name, email: rev.email, login: reviewerKey(rev),
-      self: rev.email == gSettings.email, labels: []
+      self: rev.email === gSettings.email, labels: []
     };
   }
   function reviewerKey(rev) {
@@ -69,50 +69,37 @@ function extractReviewers(data) {
   }
   function addReviewersForLabel(label) {
     if (data.labels && data.labels[label] && data.labels[label].all) {
-      for (var i=0; i<data.labels[label].all.length; i++) {
-        var rev = data.labels[label].all[i];
-        var rk = reviewerKey(rev);
-        var reviewer = rk in reviewers ? reviewers[rk] : mkrev(rev);
-        if (rev.value != 0) {
+      for (const rev of data.labels[label].all) {
+        const rk = reviewerKey(rev);
+        const reviewer = rk in reviewers ? reviewers[rk] : mkrev(rev);
+        if (rev.value !== 0) {
           reviewer.labels.push(labeledValue(label, rev.value));
         }
         reviewers[rk] = reviewer;
       }
     }
   }
-  var allLabels = _.keys(data.labels);
-  for (var i=0; i < allLabels.length; i++) {
-    addReviewersForLabel(allLabels[i]);
+  const allLabels = _.keys(data.labels);
+  for (const label of allLabels) {
+    addReviewersForLabel(label);
   }
-  for (var i = 0; i < data.removable_reviewers.length; i++) {
-    var rev = data.removable_reviewers[i];
-    var rk = reviewerKey(rev);
+  for (const rev of data.removable_reviewers) {
+    const rk = reviewerKey(rev);
     if (!rk in reviewers) {
       reviewers[rk] = mkrev(rev);
     }
   }
   console.log("REVIEWERS", reviewers);
-  return objectValues(reviewers);
+  return _.values(reviewers);
 }
 
-function objectValues(obj) {
-  var vals = [];
-  for (key in obj) {
-    if (obj.hasOwnProperty(key)) {
-      vals.push(obj[key]);
-    }
+async function loadAndRenderBox(id) {
+  const resp = await loadChange(id);
+  if (!resp.success) {
+    renderErrorBox(id, resp.err_msg);
+  } else {
+    renderBox(id, resp.data);
   }
-  return vals;
-}
-
-function loadAndRenderBox(id) {
-  loadChange(id, function(resp) {
-    if (!resp.success) {
-      renderErrorBox(id, resp.err_msg);
-    } else {
-      renderBox(id, resp.data);
-    }
-  });
 }
 
 function performActionCallback(id, resp) {
@@ -196,179 +183,158 @@ function renderBox(id, data) {
     }
   }
 
-  function actionButtonCallback(resp) {
-    performActionCallback(id, resp);
-  }
-
-  $(".gerrit-button", $info).click(function() {
-    var $this = $(this);
+  $(".gerrit-button", $info).click(async function() {
+    const $this = $(this);
+    let resp = null;
     if ($this.hasClass("view-button")) {
       viewDiff(id);
     } else if ($this.hasClass("comment-button")) {
-      commentDiff(id, false, true, actionButtonCallback);
+      resp = await commentDiff(id, false, true);
     } else if ($this.hasClass("approve-button")) {
-      commentDiff(id, true, false, actionButtonCallback);
+      resp = await commentDiff(id, true, false);
     } else if ($this.hasClass("approve-comment-button")) {
-      commentDiff(id, true, true, actionButtonCallback);
+      resp = await commentDiff(id, true, true);
     } else if ($this.hasClass("approve-submit-button")) {
-      approveSubmitDiff(id, actionButtonCallback);
+      resp = await approveSubmitDiff(id);
     } else if ($this.hasClass("submit-button")) {
-      submitDiff(id, actionButtonCallback);
+      resp = await submitDiff(id);
     } else if ($this.hasClass("rebase-submit-button")) {
-      rebaseSubmitChange(id, actionButtonCallback);
+      resp = await rebaseSubmitChange(id);
     } else if ($this.hasClass("rebase-button")) {
-      rebaseChange(id, actionButtonCallback);
+      resp = await rebaseChange(id);
     }
-  });  
+    if (resp) {
+      performActionCallback(id, resp);
+    }
+  });
 }
 
-function renderChange(id) {
-  var $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
+async function renderChange(id) {
+  const $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
   $sideBox.empty().prependTo($sidebarBoxes);
 
   // Show the actual sidebar, hidden by default
   $(".Bu.y3").css("width", 220);
   $(".nH.bno.adC").css("position", "static").css("width", "auto");
 
-  function callback(resp) {
-    console.log("Loaded change", resp);
-    if (!resp.success) {
-      renderErrorBox(id, resp.err_msg);
-      return;
-    }
-    changeId = id;
-    var data = resp.data;
-
-    renderBox(id, data);
-    
-    formatThread(data);
+  const resp = await loadChange(id);
+  console.log("Loaded change", resp);
+  if (!resp.success) {
+    renderErrorBox(id, resp.err_msg);
+    return;
   }
+  changeId = id;
+  const data = resp.data;
 
-  authenticatedSend({type: "loadChange", id: id}).done(callback);
+  renderBox(id, data);
+
+  formatThread(data);
 }
 
-function authenticatedSend(msg) {
-  function authAndSend() {
-    return authenticate().then(function(resp) {
-      if (resp.success) {
-        return sendMessage(msg);
-      } else {
-        console.log("Still failed to authenticate :'(");
-        return {success: false, err_msg: "Cannot authenticate"};
-      }
-    });
+async function authenticatedSend(msg) {
+  async function authAndSend() {
+    const resp = await authenticate();
+    if (resp.success) {
+      return await sendMessage(msg);
+    } else {
+      console.log("Still failed to authenticate :'(");
+      return {success: false, err_msg: "Cannot authenticate"};
+    }
   }
 
   if (!gSettings.auth) {
     console.log("Not authenticated! authenticate first...");
-    return authAndSend();
+    return await authAndSend();
   } else {
-    return sendMessage(msg).then(function(resp) {
-      if (!resp.success && resp.status == 401) {
-        console.log("Send failed; try to authenticate again");
-        return authAndSend();
-      } else {
-        return resp;
-      }
+    const resp = await sendMessage(msg);
+    if (!resp.success && resp.status === 401) {
+      console.log("Send failed; try to authenticate again");
+      return await authAndSend();
+    } else {
+      return resp;
+    }
+  }
+}
+
+async function sendMessage(msg) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, function(resp) {
+      console.log("Function call: " + JSON.stringify(msg), resp);
+      resolve(resp);
     });
-  }  
-}
-
-function sendMessage(msg) {
-  var deferred = $.Deferred();
-  chrome.runtime.sendMessage(msg, function(resp) {
-    console.log("Function call: " + JSON.stringify(msg), resp);
-    deferred.resolve(resp);
   });
-  return deferred.promise();
 }
 
-function loadChange(id, callback) {
-  authenticatedSend({type: "loadChange", id: id}).done(callback);
+async function loadChange(id) {
+  return authenticatedSend({type: "loadChange", id: id});
 }
 
-function loadFiles(id, revId, callback) {
-  authenticatedSend({type: "loadFiles", id: id, revId: revId}).done(callback);
+async function loadChanges(id) {
+  return authenticatedSend({type: "loadChanges"});
 }
 
-function loadDiff(id, revId, file, baseId) {
+
+async function loadDiff(id, revId, file, baseId) {
   return authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId});
 }
 
-function loadAndCacheDiff(reviewData, revId, file, baseId, callback) {
-  var rev = reviewData.revisions[revId];
-  var key = file + baseId;
+async function loadAndCacheDiff(reviewData, revId, file, baseId) {
+  const rev = reviewData.revisions[revId];
+  const key = file + baseId;
   if (!rev.diffs) {
     rev.diffs = {};
   }
-  var makePromise = function() {
+  const makePromise = function() {
     return loadDiff(reviewData._number, revId, file, baseId);
   };
-  return loadAndCache(rev.diffs, key, makePromise).done(callback);
+  return loadAndCache(rev.diffs, key, makePromise);
 }
 
-function loadAndCache(obj, prop, promiser) {
-  var promiseProp = "__promise_" + prop;
+async function loadAndCache(obj, prop, promiser) {
+  const promiseProp = "__promise_" + prop;
   if (!obj[promiseProp]) {
-    obj[promiseProp] = promiser().done(function(resp) {
-      if (resp.success && !obj[prop]) {
-        obj[prop] = resp.data;
-      }
-    });
+    obj[promiseProp] = promiser();
   }
   return obj[promiseProp];
 }
 
-function loadAndCacheComments(reviewData, callback) {
-  var makePromise = function() {
+async function loadAndCacheComments(reviewData) {
+  const makePromise = function() {
     return loadComments(reviewData._number);
   };
-  return loadAndCache(reviewData, "comments", makePromise).done(callback);
+  return loadAndCache(reviewData, "comments", makePromise);
 }
 
 function loadComments(id) {
   return authenticatedSend({type: "loadComments", id: id});
 }
 
-function loadAndCacheFileContent(reviewData, revId, file, callback) {
-  var fileObj = reviewData.revisions[revId].files[file];
-  var makePromise = function() {
-    return loadFileContent(reviewData._number, revId, file);
-  };
-  return loadAndCache(fileObj, "content", makePromise).done(callback);
-}
-
-function loadFileContent(id, revId, file) {
-  return authenticatedSend({type: "loadFileContent", id: id, revId: revId, file: file});
-}
-
 function renderError(text) {
   return $("<div class='gerrit-error'/>").text(text);
 }
 
-function formatThread(reviewData) {
-  var $thread = $("div[role='main'] .nH.if");
-  var curId = changeId;
+async function formatThread(reviewData) {
+  const $thread = $("div[role='main'] .nH.if");
+  const curId = changeId;
 
-  var numMessages = $(".Bk", $thread).length;
+  let numMessages = $(".Bk", $thread).length;
 
-  function checkAndFormat() {
+  async function checkAndFormat() {
     if (!changeId || curId != changeId) {
       return;
     }
-    var newNumMessages = $(".Bk", $thread).length;
+    const newNumMessages = $(".Bk", $thread).length;
     if (newNumMessages > numMessages) {
-      loadChange(changeId, function(resp) {
-        if (!resp.success) {
-          renderErrorBox(changeId, resp.err_msg);
-          return;
-        } else {
-          reviewData = resp.data;
-          numMessages = newNumMessages;
-          doFormat();
-          renderBox(changeId, reviewData);
-        }
-      });
+      const resp = await loadChange(changeId);
+      if (!resp.success) {
+        renderErrorBox(changeId, resp.err_msg);
+        return;
+      } else {
+        reviewData = resp.data;
+        numMessages = newNumMessages;
+        doFormat();
+        renderBox(changeId, reviewData);
+      }
     } else {
       doFormat();
     }
@@ -502,7 +468,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
     $box.on("dblclick", ".gerrit-commentable", openReplyWidget);
     $box.on("click", ".gerrit-add-comment", openReplyWidget);
   
-    function collectAndSubmitComments(approve) {
+    async function collectAndSubmitComments(approve) {
       var review = {};
       if (replyWidget.getText().length > 0) {
         review.message = replyWidget.getText();
@@ -525,13 +491,12 @@ function renderRevisionDiff(reviewData, revId, baseId) {
         review.comments[file].push({line: $(this).data("line"), side: $(this).data("side"), message: comment});
       });
   
-      submitComments(reviewData._number, revId, review, function(resp) {
-        if (resp.success) {
-          $(".gerrit-reply-box", $box).detach();
-          replyWidget.close(true);
-        }
-        performActionCallback(reviewData._number, resp);
-      });
+      const resp = await submitComments(reviewData._number, revId, review);
+      if (resp.success) {
+        $(".gerrit-reply-box", $box).detach();
+        replyWidget.close(true);
+      }
+      performActionCallback(reviewData._number, resp);
     }
   }  
 
@@ -547,16 +512,16 @@ function renderRevisionDiff(reviewData, revId, baseId) {
 }
 
 function renderFileBox(reviewData, revId, file, baseId) {
-  var $filebox = $("<div class='gerrit-content-box'/>");
+  const $filebox = $("<div class='gerrit-content-box'/>");
   $filebox.append($("<div class='gerrit-file-title'/>").text(file));
 
-  loadAndCacheDiff(reviewData, revId, file, baseId, function(resp) {
+  loadAndCacheDiff(reviewData, revId, file, baseId).then(function(resp) {
     if (resp.success) {
       $filebox.append(appendFileDiff($filebox, file, resp.data));
     } else {
       $filebox.append($("<div class='gerrit-error'/>").text("Error loading diff :'("));
     }
-  });  
+  });
   return $filebox;
 }
 
@@ -799,35 +764,6 @@ function highlightBox(color, border) {
   return $("<div/>").css({backgroundColor: color, padding: "10px", margin: "10px 0", border: "1px solid " + border});
 }
 
-function extractAndLoadMessageComments(reviewData, revId, text, callback) {
-  loadAndCacheComments(reviewData, revId, function(resp) {
-    if (!resp.success) {
-      callback(resp);
-    } else {
-      var allComments = resp.data;
-
-      function guessCommentId(file, lineComment) {
-        for (var i = 0; i < allComments[file].length; i++) {
-          var c = allComments[file][i];
-          if (c.line == lineComment.line && c.message.indexOf(lineComment.comments.join("\n")) == 0) {
-            return c.id;
-          }
-        }
-        return undefined;
-      }
-
-      var messageComments = extractMessageComments(text);
-      for (var i = 0; i < messageComments.fileComments.length; i++) {
-        var fileComment = messageComments.fileComments[i];
-        for (var j = 0; j < fileComment.lineComments.length; j++) {
-          var lineComment = fileComment.lineComments[j];
-          lineComment.id = guessCommentId(fileComment.file, lineComment);
-        }
-      }
-      callback({success: true, data: messageComments});
-    }
-  });
-}
 
 function extractMessageComments(text) {
   var lines = text.split("\n");
@@ -982,10 +918,174 @@ RespondWidget.prototype.getWidget = function() {
   return this.$box;
 };
 
-function formatComment($card, $msg, text, reviewData) {
-  var pid = extractPatchSet(text);
-  var revId = getRevisionIdByPatchNumber(reviewData, pid);
+async function formatComment($card, $msg, text, reviewData) {
+  const pid = extractPatchSet(text);
+  const revId = getRevisionIdByPatchNumber(reviewData, pid);
 
+  const resp = await loadMessageComments($card, text, reviewData, revId);
+  if (!resp.success) {
+    console.log("Failed to load comments :'(");
+    return;
+  }
+
+  formatMessageComments($msg, pid, revId, reviewData, resp.data);
+}
+
+function makeLineComment(comment, collapsed) {
+  const $comment = $("<div class='gerrit-line-comment'/>");
+  const lines = comment.message.split("\n");
+  for (let k=0; k<lines.length; k++) {
+    const line = lines[k];
+    const $line = $("<div/>").appendTo($comment);
+    if (k === 0) {
+      $line.append($("<strong/>").text(comment.author.name + ": "));
+    }
+    $line.append($("<span/>").text(line + '\xA0'));
+  }
+  if (collapsed) {
+    $("<a href='javascript:void 0;'/>").text("(expand)").addClass("gerrit-collapsed-toggle").appendTo($comment);
+    $comment.addClass("gerrit-collapsed");
+    $comment.click(function() {
+      $comment.toggleClass("gerrit-collapsed");
+    });
+  }
+
+  return $comment;
+}
+
+function makeCommentThread(lastComment, id2comment) {
+  const $thread = $("<div/>");
+  let $cur = makeLineComment(lastComment, false).appendTo($thread);
+  let cur = lastComment;
+  const parentComments = [];
+  while (cur.in_reply_to && cur.in_reply_to in id2comment) {
+    cur = id2comment[cur.in_reply_to];
+    $cur = makeLineComment(cur, true).addClass("gerrit-parent-comment").insertBefore($cur);
+    parentComments.push($cur[0]);
+  }
+  if (parentComments.length > 2) {
+    const $hiddenComments = $(parentComments.slice(1, parentComments.length-1));
+    $hiddenComments.hide();
+    const $teaser = $("<div/>").addClass("gerrit-parent-comments-collapsed").insertBefore($(parentComments[0])).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0")).append($("<span/>").text(parentComments.length - 2 + " more comments")).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0"));
+    $teaser.click(function() {
+      $teaser.hide();
+      $hiddenComments.show();
+    });
+  }
+  return $thread;
+}
+
+function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
+  const lineReplyWidgets = [];
+  let messageReplyWidget = null;
+
+  async function collectAndSubmitComments(approve) {
+    const review = {drafts: "PUBLISH_ALL_REVISIONS"};
+    if (messageReplyWidget.getText().length > 0) {
+      review.message = messageReplyWidget.getText();
+    }
+    if (approve) {
+      review.labels = {'Code-Review': 2};
+    }
+    for (const lw of lineReplyWidgets) {
+      if (lw.widget.getText().length > 0) {
+        if (!("comments" in review)) {
+          review.comments = {};
+        }
+        if (!(lw.file in review.comments)) {
+          review.comments[lw.file] = [];
+        }
+        const newComment = {line: lw.line, message: lw.widget.getText(), in_reply_to: lw.parent};
+        if (lw.parent_patch_set !== pid) {
+          // Whee bit of hackery; right now if unresolved is null and the parent is from a different patch set than the revision we're
+          // looking at, then Gerrit will throw up with "Invalid parentUuid supplied for comment".  So we force unresolved to true :-/
+          newComment.unresolved = true;
+        }
+        review.comments[lw.file].push(newComment);
+      }
+    }
+    const resp = await submitComments(reviewData._number, revId, review);
+    if (resp.success) {
+      for (const lw of lineReplyWidgets) {
+        lw.widget.close(true);
+      }
+      messageReplyWidget.close(true);
+    }
+    performActionCallback(reviewData._number, resp);
+  }
+
+  $msg.empty();
+  const $commentsBox = $("<div/>");
+  $msg.append($commentsBox);
+  const $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+  const $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+  messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
+  messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
+
+  const id2comment = {};
+  for (const file in messageComments.allComments) {
+    const fileComments = messageComments.allComments[file];
+    for (const fc of fileComments) {
+      id2comment[fc.id] = fc;
+    }
+  }
+
+  const $header = $("<div/>").appendTo($commentsBox);
+  for (let i=0; i<messageComments.message.length; i++) {
+    const ptext = messageComments.message[i];
+    const $line = $("<p/>").html(linkifyStr(ptext));
+    if (i === 0) {
+      $line.addClass("gerrit-header");
+    }
+    if (ptext.indexOf("Code-Review+2") >= 0) {
+      $header.addClass("gerrit-highlight-box");
+      $line.addClass("green");
+    } else if (ptext.indexOf("Verified+1") >= 0) {
+      $header.addClass("gerrit-highlight-box");
+      $line.addClass("green");
+    } else {
+      $header.addClass("gerrit-content-box");
+    }
+    $header.append($line);
+  }
+
+  for (const fileComment of messageComments.fileComments) {
+    if (fileComment.lineComments.length === 0) {
+      continue;
+    }
+    const $filebox = $("<div class='gerrit-content-box'/>").appendTo($commentsBox);
+    $filebox.append($("<div class='gerrit-file-title'/>").text(fileComment.file));
+    for (const lc of fileComment.lineComments) {
+      const comment = id2comment[lc.id];
+      $("<br/>").appendTo($filebox);
+      $("<pre class='gerrit-line'/>")
+        .text((comment.patch_set !== pid ? `PS ${comment.patch_set}, ` : "") + "Line " + comment.line + ": " + lc.lineContent)
+        .addClass(comment.side === "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
+        .appendTo($filebox);
+
+      makeCommentThread(comment, id2comment).appendTo($filebox);
+
+      const lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
+      lineReplyWidget.getWidget().appendTo($filebox);
+      lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
+      lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id, parent_patch_set: comment.patch_set});
+    }
+  }
+}
+
+function _diffToContentLines(diff) {
+  var content = [];
+  for (var i = 0; i < diff.content.length; i++) {
+    var section = diff.content[i];
+    var lines = section.ab || section.b || [];
+    for (var j = 0; j < lines.length; j++) {
+      content.push(lines[j]);
+    }
+  }
+  return content;
+}
+
+async function loadMessageComments($card, text, reviewData, revId) {
   // It is hard to use the REST API and figure out which comments belong to
   // this email message, since the comments we get from the REST API are just
   // grouped together under a file, and we can't tell which belong to which
@@ -1002,262 +1102,52 @@ function formatComment($card, $msg, text, reviewData) {
   // matching from email message to reviewData.message.  By default, we extract
   // load from REST API, since the message body formatting changes from release
   // to release :-/
-
-  /*
-  var $commentsBox = $("<div/>").appendTo($msg);
-  extractAndLoadMessageComments(reviewData, revId, text, function(resp) {
+  const baseId = guessNewPatchBase(reviewData.revisions[revId]._number, reviewData);
+  async function loadFileComments(file, allComments) {
+    const resp = await loadAndCacheDiff(reviewData, revId, file, baseId);
     if (!resp.success) {
-      $commentsBox.append(renderError("Failed to load comments :'("));
+      return resp;
     } else {
-      appendMessageComments(resp.data);
-    }
-  });
-  */
-
-  var $commentsBox = $("<div/>");
-  var lineReplyWidgets = [];
-  var messageReplyWidget = null;
-
-  loadMessageComments($card, text, reviewData, revId, function(resp) {
-    if (!resp.success) {
-      console.log("Failed to load comments :'(");
-    } else {
-      $msg.empty();
-      $msg.append($commentsBox);
-      var $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
-      var $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-      messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
-      messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
-      appendMessageComments(resp.data);
-    }
-  });
-
-  function appendMessageComments(messageComments) {
-    id2comment = {}
-    for (var file in messageComments.allComments) {
-      var fileComments = messageComments.allComments[file];
-      for (var i=0; i<fileComments.length; i++) {
-        id2comment[fileComments[i].id] = fileComments[i];
+      const fileComments = allComments[file].filter(c => c.author.email === gMsg.author.email && c.updated === gMsg.date);
+      const content = _diffToContentLines(resp.data);
+      const lineComments = [];
+      for (const fc of fileComments) {
+        const isSamePatchSet = fc.patch_set === reviewData.revisions[revId]._number;
+        const lineContent = (!isSamePatchSet || fc.side === "PARENT") ? "(unavailable...)" : content[fc.line-1];
+        lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
       }
-    }
-
-    function makeLineComment(comment, collapsed) {
-      var $comment = $("<div class='gerrit-line-comment'/>");
-      var lines = comment.message.split("\n");
-      for (var k = 0; k < lines.length; k++) {
-        var $line = $("<div/>").appendTo($comment);
-        if (k == 0) {
-          $line.append($("<strong/>").text(comment.author.name + ": "));
-        }
-        $line.append($("<span/>").text(lines[k] + '\xA0'));
-      }
-      if (collapsed) {
-        $("<a href='javascript:void 0;'/>").text("(expand)").addClass("gerrit-collapsed-toggle").appendTo($comment);
-        $comment.addClass("gerrit-collapsed");
-        $comment.click(function() {
-          $comment.toggleClass("gerrit-collapsed");
-        });
-      }
-      
-      return $comment;
-    }
-  
-    function makeCommentThread(lastComment) {
-      var $thread = $("<div/>");
-      var $cur = makeLineComment(lastComment, false).appendTo($thread);
-      var cur = lastComment;
-      var parentComments = [];
-      while (cur.in_reply_to && cur.in_reply_to in id2comment) {
-        cur = id2comment[cur.in_reply_to];
-        $cur = makeLineComment(cur, true).addClass("gerrit-parent-comment").insertBefore($cur);
-        parentComments.push($cur[0]);
-      }
-      if (parentComments.length > 2) {
-        var $hiddenComments = $(parentComments.slice(1, parentComments.length-1));
-        $hiddenComments.hide();
-        var $teaser = $("<div/>").addClass("gerrit-parent-comments-collapsed").insertBefore($(parentComments[0])).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0")).append($("<span/>").text(parentComments.length - 2 + " more comments")).append($("<span/>").addClass("gerrit-strikethrough").text("\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0\xA0"));
-        $teaser.click(function() {
-          $teaser.hide();
-          $hiddenComments.show();
-        });
-      }
-      return $thread;
-    }
-  
-    var $header = $("<div/>").appendTo($commentsBox);
-    for (var i = 0; i < messageComments.message.length; i++) {
-      var ptext = messageComments.message[i];
-      var $line = $("<p/>").html(linkifyStr(ptext));
-      if (i == 0) {
-        $line.addClass("gerrit-header");
-      }
-      if (ptext.indexOf("Code-Review+2") >= 0) {
-        $header.addClass("gerrit-highlight-box");
-        $line.addClass("green");
-      } else if (ptext.indexOf("Verified+1") >= 0) {
-        $header.addClass("gerrit-highlight-box");
-        $line.addClass("green");
-      } else {
-        $header.addClass("gerrit-content-box");
-      }
-      $header.append($line);
-    }
-
-    for (var i = 0; i < messageComments.fileComments.length; i++) {
-      var fileComment = messageComments.fileComments[i];
-      if (fileComment.lineComments.length == 0) {
-        continue;
-      }
-      var $filebox = $("<div class='gerrit-content-box'/>").appendTo($commentsBox);
-      $filebox.append($("<div class='gerrit-file-title'/>").text(fileComment.file));
-      for (var j = 0; j < fileComment.lineComments.length; j++) {
-        var lc = fileComment.lineComments[j];
-        var comment = id2comment[lc.id];
-        $("<br/>").appendTo($filebox);
-        $("<pre class='gerrit-line'/>")
-          .text((comment.patch_set != pid ? `PS ${comment.patch_set}, ` : "") + "Line " + comment.line + ": " + lc.lineContent)
-          .addClass(comment.side == "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
-          .appendTo($filebox);
-
-        makeCommentThread(comment).appendTo($filebox);
-
-        var lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
-        lineReplyWidget.getWidget().appendTo($filebox);
-        lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
-        lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id, parent_patch_set: comment.patch_set});
-      }
+      return {success: true, data: {file: file, lineComments: lineComments}};
     }
   }
 
-  function collectAndSubmitComments(approve) {
-    var review = {drafts: "PUBLISH_ALL_REVISIONS"};
-    if (messageReplyWidget.getText().length > 0) {
-      review.message = messageReplyWidget.getText();
-    }
-    if (approve) {
-      review.labels = {'Code-Review': 2};
-    }
-    for (var i = 0; i < lineReplyWidgets.length; i++) {
-      var lw = lineReplyWidgets[i];
-      if (lw.widget.getText().length > 0) {
-        if (!("comments" in review)) {
-          review.comments = {};
-        }
-        if (!(lw.file in review.comments)) {
-          review.comments[lw.file] = [];
-        }
-        var newComment = {line: lw.line, message: lw.widget.getText(), in_reply_to: lw.parent};
-        if (lw.parent_patch_set != pid) {
-          // Whee bit of hackery; right now if unresolved is null and the parent is from a different patch set than the revision we're
-          // looking at, then Gerrit will throw up with "Invalid parentUuid supplied for comment".  So we force unresolved to true :-/
-          newComment.unresolved = true;
-        }
-        review.comments[lw.file].push(newComment);
-      }
-    }
-    console.log("REVIEW", review);
-    submitComments(reviewData._number, revId, review, function(resp) {
-      if (resp.success) {
-        for (var i = 0; i < lineReplyWidgets.length; i++) {
-          lineReplyWidgets[i].widget.close(true);
-        }
-        messageReplyWidget.close(true);
-      }
-      performActionCallback(reviewData._number, resp);
-    });
+  const resp = await loadAndCacheComments(reviewData);
+  if (!resp.success) {
+    return resp;
   }
-}
 
-function _diffToContentLines(diff) {
-  var content = [];
-  for (var i = 0; i < diff.content.length; i++) {
-    var section = diff.content[i];
-    var lines = section.ab || section.b || [];
-    for (var j = 0; j < lines.length; j++) {
-      content.push(lines[j]);
+  const allComments = resp.data;
+  console.log("Loaded comments", allComments);
+  const gMsg = guessGerritMessage($card, text, revId, reviewData);
+  console.log("MATCHED", gMsg);
+  if (!gMsg) {
+    console.log("Failed to match " + revId, {text: text, reviewData: reviewData});
+    return {success: false};
+  } else {
+    const promises = [];
+    for (const file in allComments) {
+      promises.push(loadFileComments(file, allComments));
     }
-  }
-  return content;
-}
-
-function loadMessageComments($card, text, reviewData, revId, callback) {
-  var gMsg = undefined;
-
-  var baseId = guessNewPatchBase(reviewData.revisions[revId]._number, reviewData);
-  function loadFileComments2(file, allComments) {
-    var deferred = $.Deferred();
-    loadAndCacheDiff(reviewData, revId, file, baseId, function(resp) {
+    const resps = await Promise.all(promises);
+    const fileComments = [];
+    for (const resp of resps) {
       if (!resp.success) {
-        deferred.resolve(resp);
+        return resp;
       } else {
-        var fileComments = allComments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
-        var content = _diffToContentLines(resp.data);
-        console.log("CONTENT", content);
-        var lineComments = [];
-        for (var i = 0; i < fileComments.length; i++) {
-          var fc = fileComments[i];
-          var isSamePatchSet = fc.patch_set == reviewData.revisions[revId]._number;
-          var lineContent = (!isSamePatchSet || fc.side == "PARENT") ? "(unavailable...)" : content[fc.line-1];
-          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
-        }
-        deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});        
+        fileComments.push(resp.data);
       }
-    });
-    return deferred;
-  }
-
-  function loadFileComments(file, allComments) {
-    var deferred = $.Deferred();
-    loadAndCacheFileContent(reviewData, revId, file, function(resp) {
-      if (!resp.success) {
-        deferred.resolve(resp);
-      } else {
-        var fileComments = allComments[file].filter(function(c) {return c.author.email == gMsg.author.email && c.updated == gMsg.date});
-        var content = resp.data.split("\n");
-        var lineComments = [];
-        for (var i = 0; i < fileComments.length; i++) {
-          var fc = fileComments[i];
-          var lineContent = fc.side == "PARENT" ? "(unavailable...)" : content[fc.line-1];
-          lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n")});
-        }
-        deferred.resolve({success: true, data: {file: file, lineComments: lineComments}});
-      }
-    });
-    return deferred;
-  }
-
-  loadAndCacheComments(reviewData, function(resp) {
-    if (!resp.success) {
-      callback(resp);
-      return;
     }
-    var allComments = resp.data;
-    console.log("Loaded comments", allComments);
-    gMsg = guessGerritMessage($card, text, revId, reviewData);
-    console.log("MATCHED", gMsg);
-    if (!gMsg) {
-      console.log("Failed to match " + revId, {text: text, reviewData: reviewData});
-      callback({success: false});
-    } else {
-      var deferreds = [];
-      for (var file in allComments) {
-        deferreds.push(loadFileComments2(file, allComments));
-      }
-      $.when.apply($, deferreds).done(function() {
-        var resps = arguments;
-        var fileComments = [];
-        for (var i = 0; i < resps.length; i++) {
-          if (!resps[i].success) {
-            callback(resps[i]);
-            return;
-          } else {
-            fileComments.push(resps[i].data);
-          }
-        }
-        callback({success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}});
-      });
-    }
-  });
+    return {success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}};
+  }
 }
 
 function crunch(string) {
@@ -1526,119 +1416,110 @@ function showNeedLogin() {
   sendMessage({type: "showLogin"});
 }
 
-function loadSettings(callback) {
-  sendMessage({type: "settings"}).then(callback);
+async function loadSettings() {
+  return await sendMessage({type: "settings"});
 }
 
-function authenticate() {
-  return sendMessage({type: "authenticate"}).then(function(resp) {
-    if (resp.success) {
-      gSettings.auth = true;
-      gSettings.email = resp.email;
-      hidePageAction();
-    } else {
-      gSettings.auth = false;
-      gSettings.email = undefined;
-      showNeedLogin();
-    }
-    return resp;
-  });
+async function authenticate() {
+  const resp = await sendMessage({type: "authenticate"});
+  if (resp.success) {
+    gSettings.auth = true;
+    gSettings.email = resp.email;
+    hidePageAction();
+  } else {
+    gSettings.auth = false;
+    gSettings.email = undefined;
+    showNeedLogin();
+  }
+  return resp;
 }
 
 function viewDiff(id) {
   sendMessage({type: "viewDiff", id: id});  
 }
 
-function commentDiff(id, approve, comment, callback) {
-  var commentText = null;
+async function commentDiff(id, approve, comment) {
+  let commentText = null;
   if (comment) {
     commentText = prompt("Say your piece.");
     if (!commentText) {
       return;
     }
   }
-  authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText}).done(callback);
+  return await authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText});
 }
 
-function approveSubmitDiff(id, callback) {
-  function approveCallback(resp) {
-    if (!resp.success) {
-      callback(resp);
-    } else {
-      submitDiff(id, callback);
-    }
+async function approveSubmitDiff(id) {
+  const resp = await commentDiff(id, true, false);
+  if (!resp.success) {
+    return resp;
+  } else {
+    return await submitDiff(id);
   }
-  commentDiff(id, true, false, approveCallback);
 }
 
-function submitDiff(id, callback) {
-  function submitCallback(resp) {
-    if (!resp.success && resp.status == 409 && resp.err_msg.indexOf("Please rebase") >= 0) {
-      console.log("Submit failed; automatically rebasing...");
-      rebaseSubmitChange(id, callback);
-    } else {
-      callback(resp);
-    }
+async function submitDiff(id) {
+  const resp = await authenticatedSend({type: "submitDiff", id: id});
+  if (!resp.success && resp.status === 409 && resp.err_msg.indexOf("Please rebase") >= 0) {
+    console.log("Submit failed; automatically rebasing...");
+    return await rebaseSubmitChange(id);
+  } else {
+    return resp;
   }
-  authenticatedSend({type: "submitDiff", id: id}).done(submitCallback);
 }
 
-function rebaseChange(id, callback) {
-  authenticatedSend({type: "rebaseChange", id: id}).done(callback);
+async function rebaseChange(id) {
+  return await authenticatedSend({type: "rebaseChange", id: id});
 }
 
-function submitComments(id, revId, review, callback) {
-  authenticatedSend({type: "submitComments", id: id, revId: revId, review: review}).done(callback);
+async function submitComments(id, revId, review) {
+  return await authenticatedSend({type: "submitComments", id: id, revId: revId, review: review});
 }
 
-function rebaseSubmitChange(id, callback) {
-  function rebaseCallback(resp) {
-    if (!resp.success) {
-      callback(resp);
-    } else {
-      authenticatedSend({type: "submitDiff", id: id}).done(callback);
-    }
+async function rebaseSubmitChange(id) {
+  const resp = await rebaseChange(id);
+  if (!resp.success) {
+    return resp;
+  } else {
+    return await authenticatedSend({type: "submitDiff", id: id});
   }
-  rebaseChange(id, rebaseCallback);
 }
 
-function initialize() {
-  loadSettings(function(settings) {
-    gSettings.url = settings.url;
-    gSettings.contextLines = settings.contextLines;
-    gSettings.botNames = settings.botNames;
+async function initialize() {
+  const settings = await loadSettings();
+  gSettings.url = settings.url;
+  gSettings.contextLines = settings.contextLines;
+  gSettings.botNames = settings.botNames;
 
-    if (!gSettings.url) {
-      // No URL set; forget it
-      return;
-    }
+  if (!gSettings.url) {
+    // No URL set; forget it
+    return;
+  }
 
-    if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
-      // Email is set and is not the current gmail account; forget it
-      console.log("Expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
-      return;
-    }
+  if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
+    // Email is set and is not the current gmail account; forget it
+    console.log("Expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
+    return;
+  }
 
-    console.log("Running Gerrit plugin!");
+  console.log("Running Gerrit plugin!");
 
-    $(window).bind("hashchange", function() {
-      setTimeout(checkPage, 100);
-    });
-    setTimeout(function() {
-      $("body").keypress(handleKeyPress);
-      checkPage();
-    }, 3000);
-
-    authenticate(function(resp) {
-      if (resp.success) {
-        console.log("Authenticated!");
-        checkPage();
-      } else {
-        console.log("Not authenticated!");
-        showNeedLogin();
-      }
-    });
+  $(window).bind("hashchange", function() {
+    setTimeout(checkPage, 100);
   });
+  setTimeout(function() {
+    $("body").keypress(handleKeyPress);
+    checkPage();
+  }, 3000);
+
+  const resp = await authenticate();
+  if (resp.success) {
+    console.log("Authenticated!");
+    checkPage();
+  } else {
+    console.log("Not authenticated!");
+    showNeedLogin();
+  }
 }
 
 function extractDiffIdFromUrl(url) {
@@ -1685,22 +1566,20 @@ function checkPage() {
   }
 }
 
-function checkThreads() {
-  var $subjects = $("div[role='main'] table.F.cf.zt td div[role='link'] div.y6 span:first-child");
+async function checkThreads() {
+  const $subjects = $("div[role='main'] table.F.cf.zt td div[role='link'] div.y6 span:first-child");
   if ($subjects.length == 0) {
     return;
   }
 
-  var needData = _.any($subjects, function(s) { return !$(s).data("gerrit-thread-seen"); });
+  const needData = _.any($subjects, function(s) { return !$(s).data("gerrit-thread-seen"); });
   if (needData) {
-    function callback(resp) {
-      console.log("Loaded changes", resp);
-      if (!resp.success) {
-        return;
-      }
-      annotateThreads($subjects, resp.data);
+    const resp = await loadChanges();
+    console.log("Loaded changes", resp);
+    if (!resp.success) {
+      return;
     }
-    authenticatedSend({type: "loadChanges"}).done(callback);
+    annotateThreads($subjects, resp.data);
   }
   setTimeout(checkThreads, 5000);
 }
@@ -1803,16 +1682,17 @@ function isBot(username) {
   return _.contains(gSettings.botNames || [], username);
 }
 
-function handleKeyPress(e) {
-  var $target = $(e.target);
-  if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() == "input" || $target.prop("tagName").toLowerCase() == "textarea") {
+async function handleKeyPress(e) {
+  const $target = $(e.target);
+  if ($target.hasClass("editable") || $target.prop("tagName").toLowerCase() === "input" || $target.prop("tagName").toLowerCase() === "textarea") {
     return;
   }
   if (changeId) {
-    if (e.which == 119) {
+    if (e.which === 119) {
       viewDiff(changeId);
-    } else if (e.which == 87) {
-      commentDiff(changeId, true, false, function(resp) { performActionCallback(changeId, resp); });
+    } else if (e.which === 87) {
+      const resp = await commentDiff(changeId, true, false);
+      performActionCallback(changeId, resp);
     }
   }
 }
