@@ -26,9 +26,14 @@ function save() {
   
   // localStorage['user'] = user;
   // localStorage['password'] = password;
+  _flashMessage("Saved! You should reload your Gmail tabs to reflect the changes.");
+  return false;
+}
 
-  alert("Saved! You should reload your Gmail tabs to reflect the changes.");
-  return true;
+function _flashMessage(msg) {
+  var $msg = $("<div class='message'/>").text(msg);
+  $msg.prependTo("form.options-form");
+  setTimeout(function() { $msg.fadeOut();}, 5000);
 }
 
 function _validateEmail(email) {
