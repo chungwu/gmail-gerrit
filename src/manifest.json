@@ -12,7 +12,7 @@
   },
   "content_scripts": [{
     "js": [
-      "js/jquery-1.8.3-min.js", 
+      "js/jquery-3.3.1.min.js", 
       "js/jquery.hashchange.js", 
       "js/jquery.tmpl.js", 
       "js/underscore-min.js", 
