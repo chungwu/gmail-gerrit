@@ -2,11 +2,11 @@ Gerrit for Gmail Chrome Extension
 =================================
 
 Gerrit is great, and its review-per-commit model really encourages numerous small, logical, easy-to-digest code
-reviews over a few monstrous ones -- just the way we prefer it.  However, that also means most code reviews
-are so simple and straightforward, that often we'd rather just read and approve the change right when
-we receive the code review notification in Gmail.  That's what this Chrome extension is -- a frictionless
-UI for performing your common Gerrit actions without leaving Gmail.  If you use Gerrit, and you use Gmail,
-this is for you.
+reviews over a few monstrous ones -- just the way we prefer it.  However, that also means we end up doing a lot
+of small code reviews that are so simple and straightforward, that often we'd rather just read and approve 
+the change right when we receive the code review notification in Gmail.  That's what this Chrome extension is -- 
+a frictionless UI for performing your common Gerrit actions without leaving Gmail.  It is a mini Gerrit client
+built right into your Gmail.  If you use Gerrit, and you use Gmail, this is for you.
 
 This Chrome extension aims to implement a very basic Gerrit workflow into your Gmail, based on the emails Gerrit sends.
 Specifically,
