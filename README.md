@@ -41,15 +41,34 @@ diff line to comment directly.*
 *Gerrit emails in your inbox thread list will contain their current Gerrit status, and call out which ones 
 require your attention.*
 
+Review Statuses
+---------------
+The extension derives more "actionable" code review statuses.  They are:
+* Waiting -- the commit is yours, has been Verified+1, and you are waiting for reviews.
+* To Respond -- the commit is yours, and currently has review comments that you haven't responded to yet.
+* Reviewed -- you are a reviewer, and you have reviewed the latest patchset (or, you've commented after the commit owner).
+* To Review -- you are a reviewer, and you need to review this (or, the commit owner has commented after you).
+* Unverified -- the commit hasn't been Verified+1 yet.
+* Failed Verify -- the commit is Verified-1.
+* Approved -- the commit is Code-Review+2.
+* Rejected -- the commit is Code-Review-1 or Code-Review-2.
+* New -- the commit hasn't been reviewed yet.
+* Merged -- the commit has been merged.
+* Abandoned -- the commit has been abandoned.
+* Merge Pending -- the commit has been submitted, but not yet merged.
+
 Requirements
 ------------
 
 * **Gerrit 2.8+**, which contains most of the REST API endpoints necessary for the extension.
-* Your email templates must include the following, in the footer or elsewhere:
+* For formatting your Gerrit emails, your Gerrit email templates must include the following, in the footer or 
+  elsewhere (they are all included in the default email templates):
   * A link to Gerrit for the change (`$email.changeUrl`)
-  * `Gerrit-PatchSet: $patchSet.patchSetId`
-  * `Gerrit-MessageType: $messageClass`
-  * `Gerrit-Comment-Date: `
+  * `Gerrit-PatchSet:`
+  * `Gerrit-MessageType:`
+  * `Gerrit-Comment-Date:`
+* For annotating your threadlist views in Gmail with Gerrit review status, your Gerrit email subject
+  should contain the format `{$shortProjectName}[{$branch.shortName}]: {$change.shortSubject}`
 
 Right now, the extension is also very dumb and assumes a pretty much out-of-the-box Gerrit workflow -- that is, 
 approving a change means Code-Review: +2.  It does not work with any custom labels, etc.
