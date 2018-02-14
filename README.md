@@ -30,16 +30,16 @@ Screenshots
 These screenshots were taken of actual Gerrit code reviews from the 
 [Gerrit repository](https://gerrit-review.googlesource.com).  Apologies to those featured here!
 
-![diffs](https://user-images.githubusercontent.com/773353/35765047-6ec6e0b8-0871-11e8-8dbb-eb9ab3df4f43.png)
 *Change emails you receive will now contain nicely-formatted colored diffs. You can also double-click on a 
 diff line to comment directly.*
+![diffs](https://user-images.githubusercontent.com/773353/35765047-6ec6e0b8-0871-11e8-8dbb-eb9ab3df4f43.png)
 
-![respond](https://user-images.githubusercontent.com/773353/35765048-6edc356c-0871-11e8-93d4-e9c2b163d3e8.png)
 *Comments are threaded together for easy browsing.  You can respond directly to comment threads.*
+![comments2](https://user-images.githubusercontent.com/773353/36222329-d00a74ea-1175-11e8-9b42-29ff5b61f617.png)
 
-![threadlist](https://user-images.githubusercontent.com/773353/35765049-6ef13cd2-0871-11e8-9950-b24154fb9dd9.png)
 *Gerrit emails in your inbox thread list will contain their current Gerrit status, and call out which ones 
 require your attention.*
+![threadlist](https://user-images.githubusercontent.com/773353/35765049-6ef13cd2-0871-11e8-9950-b24154fb9dd9.png)
 
 Review Statuses
 ---------------
