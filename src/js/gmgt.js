@@ -1621,7 +1621,7 @@ function initialize() {
 
     console.log("Running Gerrit plugin!");
 
-    $(window).hashchange(function() {
+    $(window).bind("hashchange", function() {
       setTimeout(checkPage, 100);
     });
     setTimeout(function() {

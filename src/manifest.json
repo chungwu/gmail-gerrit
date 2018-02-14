@@ -13,8 +13,7 @@
   "content_scripts": [{
     "js": [
       "js/jquery-3.3.1.min.js", 
-      "js/jquery.hashchange.js", 
-      "js/jquery.tmpl.js", 
+      "js/jquery.tmpl.js",
       "js/underscore-min.js", 
       "js/linkify.min.js", 
       "js/linkify-string.min.js", 
