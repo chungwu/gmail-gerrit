@@ -225,25 +225,6 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
     }
   }
 
-  // DIGEST error
-  // var auth = {step: 0};
-  // function onError(xhr, textStatus, errorThrown) {
-  //   if (auth.step == 1 || xhr.status != 401) {
-  //     console.log("real error!");
-  //     callback({success: false, status: xhr.status, err_msg: xhr.responseText});
-  //     return;
-  //   }
-
-  //   // status is 401
-  //   console.log("Attempting digest auth...");
-  //   auth.step = 1;
-  //   var challenge = xhr.getResponseHeader('WWW-Authenticate');
-  //   var response = _buildChallengeResponse(uri, settings.type, challenge);
-  //   settings.headers = settings.headers || {}
-  //   settings.headers['Authorization'] = response;
-  //   $.ajax(gerritUrl() + "/a" + uri, settings);
-  // }
-
   var key = JSON.stringify([uri, settings.dataType, settings.data]);
   if (settings.type == "GET" && key in _outstandingRequests) {
     console.log("Collapsing calls", key);
@@ -254,62 +235,6 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
       .fail(onError)
       .always(function() { delete _outstandingRequests[key]; });
   }
-}
-
-var xhr;
-_RE_NONCE = /nonce="([^"]+)"/
-function _buildChallengeResponse(uri, method, challenge) {
-  var auth = _parseChallenge(challenge);
-  var cnonce = (Math.random()).toString();
-  var nonce = _extractRe(_RE_NONCE.exec, challenge);
-  var nc = "00000001";
-  var A1 = digest(user() + ":" + auth.headers.realm + ":" + password());
-  var A2 = digest(method + ":" + uri);
-  var R = digest(
-    A1 + ":" + 
-    auth.headers.nonce + ":" + 
-    nc + ":" +
-    cnonce + ":" + 
-    auth.headers.qop + ":" +
-    A2);
-
-  var buffer = [];
-  buffer.push('username="' + user() + '"');
-  buffer.push('realm="' + auth.headers.realm + '"');
-  buffer.push('nonce="' + nonce + '"');
-  buffer.push('uri="' + uri + '"');
-  buffer.push('cnonce="' + cnonce + '"');
-  buffer.push('nc="' + nc + '"');
-  buffer.push('qop="' + auth.headers.qop + '"');
-  buffer.push('response="' + R + '"');
-  return auth.scheme + " " + buffer.join(", ");
-}
-
-function digest(str) {
-  console.log("Digest: ", str);
-  return CryptoJS.MD5(str);
-}
-
-function _parseChallenge(h) {
-  var auth = {};
-
-  var scre = /^\w+/;
-  var scheme = scre.exec(h);
-  auth.scheme = scheme[0];
-  auth.headers = {};
-
-  var nvre = /(\w+)=['"]([^'"]+)['"]/g;
-  var pairs = h.match(nvre);
-
-  var vre = /(\w+)=['"]([^'"]+)['"]/;
-  var i = 0;
-  for (; i<pairs.length; i++) {
-    var v = vre.exec(pairs[i]);
-    if (v) {
-      auth.headers[v[1]] = v[2];
-    }
-  }
-  return auth;
 }
 
 function showDiffs(id) {
