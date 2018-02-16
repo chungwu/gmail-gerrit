@@ -5,7 +5,7 @@ html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 12px
 a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
 .form-row { margin: 10px 0; }
 .form-note { font-size: 10px; color: #888; }
-.message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold;}
+.message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none;}
 </style>
 <script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
 <script type="text/javascript" src="js/options.js"></script>
@@ -21,24 +21,13 @@ When you're viewing an email from Gerrit,
 </p>
 <form class="options-form">
   <h3>Settings</h3>
+  <div class="message"></div>
   <div class="form-row">
     <div>
       Gerrit URL: <input id="url" style="width:400px"/>
     </div>
     <div class="form-note">The URL where your Gerrit instance is hosted.</div>
   </div>
-  <!-- <div class="form-row"> -->
-  <!--   <div> -->
-  <!--     Gerrit User: <input id="user" style="width:400px"/> -->
-  <!--   </div> -->
-  <!--   <div class="form-note">Your Gerrit user name</div> -->
-  <!-- </div> -->
-  <!-- <div class="form-row"> -->
-  <!--   <div> -->
-  <!--     Gerrit Password: <input id="password" style="width:400px"/> -->
-  <!--   </div> -->
-  <!--   <div class="form-note">Your HTTP Gerrit password.  See [your gerrit instance]/settings/http-password</div> -->
-  <!-- </div> -->
   <div class="form-row">
     <div>
       Enabled Gmail Account: <input id="gmail" style="width:400px"/>
