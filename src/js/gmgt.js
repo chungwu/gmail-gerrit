@@ -251,12 +251,22 @@ async function authenticatedSend(msg) {
   }
 }
 
+function flashMessage(msg) {
+  $(".b8 .vh").text(msg);
+  $(".b8").css("top", "inherit");
+}
+
 async function sendMessage(msg) {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(msg, function(resp) {
-      console.log("Function call: " + JSON.stringify(msg), resp);
-      resolve(resp);
-    });
+    try {
+      chrome.runtime.sendMessage(msg, function(resp) {
+        console.log("Function call: " + JSON.stringify(msg), resp);
+        resolve(resp);
+      });
+    } catch(err) {
+      resolve({success: false, err_msg: "Gerrit extension has been updated to a new version. Please reload your Gmail tab!"});
+      flashMessage("Oops, Gerrit extension has been updated to a new version. Please reload your Gmail tab!");
+    }
   });
 }
 
@@ -1263,7 +1273,6 @@ function reviewStatus(reviewData) {
 function clearDiff() {
   changeId = null;
   $sideBox.detach();
-  hidePageAction();
 }
 
 function hidePageAction() {
@@ -1278,6 +1287,10 @@ function showNeedLogin() {
   sendMessage({type: "showLogin"});
 }
 
+function showSuccess() {
+  sendMessage({type: "showSuccess"});
+}
+
 async function loadSettings() {
   return await sendMessage({type: "settings"});
 }
@@ -1287,7 +1300,7 @@ async function authenticate() {
   if (resp.success) {
     gSettings.auth = true;
     gSettings.email = resp.email;
-    hidePageAction();
+    showSuccess();
   } else {
     gSettings.auth = false;
     gSettings.email = undefined;
@@ -1355,6 +1368,7 @@ async function initialize() {
 
   if (!gSettings.url) {
     // No URL set; forget it
+    showNeedSetup();
     return;
   }
 
@@ -1550,6 +1564,7 @@ async function handleKeyPress(e) {
     } else if (e.which === 87) {
       const resp = await commentDiff(changeId, true, false);
       performActionCallback(changeId, resp);
+      flashMessage("Approved!");
     }
   }
 }

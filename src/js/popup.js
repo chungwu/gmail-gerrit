@@ -7,8 +7,10 @@ function initialize() {
   $(".actions").hide();
   if (!bg.gerritUrl()) {
     $(".actions.unsetup").show();
-  } else {
+  } else if (!bg.isAuthenticated()) {
     $(".actions.unauthorized").show();
+  } else {
+    $(".actions.success").show();
   }
 }
 

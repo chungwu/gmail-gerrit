@@ -30,6 +30,8 @@ function contentHandler(request, sender, callback) {
     return showPageActionError(sender.tab.id);
   } else if (request.type == "showLogin") {
     return showPageActionError(sender.tab.id);
+  } else if (request.type == "showSuccess") {
+    return showPageActionSuccess(sender.tab.id);
   } else if (request.type == "hidePageAction") {
     return hidePageAction(sender.tab.id);
   }
@@ -39,6 +41,11 @@ chrome.runtime.onMessage.addListener(contentHandler);
 function showPageActionError(tabId) {
   chrome.pageAction.show(tabId);
   chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit-error.png"});
+}
+
+function showPageActionSuccess(tabId) {
+  chrome.pageAction.show(tabId);
+  chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit.png"});
 }
 
 function hidePageAction(tabId) {
@@ -102,6 +109,7 @@ function initializeAuth() {
       wrapChromeCall(chrome.cookies.getAll, [{domain: new URL(gerritUrl()).hostname, name: "XSRF_TOKEN"}]).then(function (resp) {
         if (!resp || resp.length == 0 || !resp[0].value) {
           console.log("Failed to read XSRF_TOKEN from cookie :-/");
+          _GERRIT_AUTH = undefined;
           d.reject();
         } else {
           _GERRIT_AUTH = resp[0].value;
@@ -313,7 +321,12 @@ function login() {
 }
 
 function setup() {
-  chrome.tabs.create({url:"options.html"});
+  chrome.runtime.openOptionsPage();
+  // chrome.tabs.create({url:"options.html"});
+}
+
+function isAuthenticated() {
+  return _GERRIT_AUTH !== undefined;
 }
 
 function gerritUrl() {
@@ -375,3 +388,15 @@ function wrapChromeCall(func, args) {
   func.apply(null, args.concat([callback]));
   return deferred.promise();
 }
+
+chrome.runtime.onUpdateAvailable.addListener(details => {
+  console.log("Update available:", details);
+  chrome.runtime.reload();
+});
+
+chrome.runtime.onInstalled.addListener(details => {
+  console.log("Installed:", details);
+  if (details.reason === "install") {
+    setup();
+  }
+});
