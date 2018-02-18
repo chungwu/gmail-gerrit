@@ -9,12 +9,14 @@ body {
   padding: 10px;
 }
 
+ul { padding-left: 20px; }
+
 .status { background-color: #f9f3c9; padding: 10px; border:1px solid #c9c399; margin-bottom: 10px;}
 .status-text.approved {color: #00681c; font-weight: bold;}
 
 .actions {}
 .action-approve { font-weight: bold; }
-.actions a { margin-right: 10px; }
+.actions a.button { margin-right: 10px; }
 
 .button { display: inline-block; min-width: 10px; border: 1px solid gainsboro; text-align: center; color: #666; height:2em; padding: 0 8px; line-height:2em; border-radius:2px; background-color:whiteSmoke; background-image:-webkit-gradient(linear,left top,left bottom,from(#f5f5f5),to(#f1f1f1)); background-image:-moz-linear-gradient(top,#f5f5f5,#f1f1f1)}
 .button:hover { border:1px solid #c6c6c6;color:#333;background-color:#f8f8f8;background-image:-webkit-gradient(linear,left top,left bottom,from(#f8f8f8),to(#f1f1f1));background-image:-webkit-linear-gradient(top,#f8f8f8,#f1f1f1);-webkit-box-shadow:0 1px 1px rgba(0,0,0,0.1);background-image:-moz-linear-gradient(top,#f8f8f8,#f1f1f1);}
@@ -25,16 +27,50 @@ body {
 </head>
 <body>
 <div class="actions unauthorized" style="display:none;">
-  <div class="status">We cannot talk to Gerrit.</div>
-  <a class="button action-login">Login</a>
+  <div class="status">
+    We cannot talk to Gerrit; you may need to <strong><a class="action-login">log into Gerrit</a></strong> first, or
+    <a class="action-setup">fix your configuration</a>.
+  </div>
+  <a class="button action-login"><strong>Log into Gerrit</strong></a>
+  <a class="button action-auth">Try again</a>
   <a class="button action-setup">Setup</a>
 </div>
 <div class="actions unsetup" style="display:none;">
-  <div class="status">You need to set up your Gerrit extension.</div>
-  <a class="button action-setup">Setup</a>
+  <div class="status">
+    <p>
+      <strong>Welcome!</strong>
+      Thanks for trying the Gerrit for Gmail extension.
+    </p>
+    <p>
+      First, you need to <strong><a class="action-setup">configure the extension</a></strong> to talk to your Gerrit instance.
+    </p>
+  </div>
+  <a class="button action-setup"><strong>Setup</strong></a>
+</div>
+<div class="actions reload" style="display:none;">
+  <div class="status">
+    Great! We are able to talk to Gerrit now, but you still need to reload your Gmail tab for this to work.
+  </div>
 </div>
 <div class="actions success" style="display:none;">
-  <div class="status">Looks like your Gmail and Gerrit are talking! Happy code reviews.</div>
+  <div class="status">
+    <p>
+      Great, the Gerrit extension is working!  Here are some more pro tips for using this extension:
+    </p>
+    <ul>
+      <li>You can use keyboard shortcuts!  From a Gerrit email, press "w" to open the change in Gerrit, and "W" to approve the change.</li>
+      <li>When you're looking at colored diffs of a change, you can double-click on a green line to add a comment.</li>
+      <li>
+        If you have a chatty bot regularly commenting on your changes (like Jenkins, etc.), you can add their user names
+        to the <a class="action-setup">Bot names field on the Options page</a>, and the extension will do a better job
+        deriving change status and showing you diffs between patch sets.
+      </li>
+    </ul>
+
+    <p>
+      Happy code reviews!
+    </p>
+  </div>
   <a class="button action-setup">Setup</a>
 </div>
 </body>

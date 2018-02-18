@@ -46,6 +46,7 @@ function showPageActionError(tabId) {
 function showPageActionSuccess(tabId) {
   chrome.pageAction.show(tabId);
   chrome.pageAction.setIcon({tabId:tabId, path:"icons/gerrit.png"});
+  localStorage['hasSuccessfullyConnected'] = true;
 }
 
 function hidePageAction(tabId) {
@@ -268,6 +269,10 @@ function user() {
 
 function password() {
   return localStorage['password'];
+}
+
+function hasSuccessfullyConnected() {
+  return localStorage['hasSuccessfullyConnected'];
 }
 
 function authenticate(callback) {

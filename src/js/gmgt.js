@@ -233,6 +233,7 @@ async function authenticatedSend(msg) {
       return await sendMessage(msg);
     } else {
       console.log("Still failed to authenticate :'(");
+      showNeedLogin();
       return {success: false, err_msg: "Cannot authenticate"};
     }
   }
