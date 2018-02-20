@@ -234,7 +234,7 @@ async function authenticatedSend(msg) {
     } else {
       console.log("Still failed to authenticate :'(");
       showNeedLogin();
-      return {success: false, err_msg: "Cannot authenticate"};
+      return {success: false, status: 403, err_msg: "Cannot authenticate"};
     }
   }
 
@@ -243,8 +243,8 @@ async function authenticatedSend(msg) {
     return await authAndSend();
   } else {
     const resp = await sendMessage(msg);
-    if (!resp.success && resp.status === 401) {
-      console.log("Send failed; try to authenticate again");
+    if (!resp.success && resp.status === 403) {
+      console.log("Send failed; try to authenticate again", resp);
       return await authAndSend();
     } else {
       return resp;

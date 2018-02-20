@@ -218,7 +218,7 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
         console.log("Re-issuing ajax call using new token...");
         ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType);
       }).fail(function() {
-        callback({success: false, err_msg: "Cannot authenticate"});
+        callback({success: false, status: xhr.status, err_msg: "Cannot authenticate"});
       });
     } else {
       err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
