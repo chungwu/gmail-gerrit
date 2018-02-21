@@ -1,10 +1,13 @@
 <html>
 <head>
 <style type="text/css">
-html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 12px;}
+html, body { font-family: Helvetica,Arial, default; color: #333; font-size: 14px; padding: 0 5px;}
 a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
-.form-row { margin: 10px 0; }
-.form-note { font-size: 10px; color: #888; }
+input { font-size: 14px; padding: 5px; width: 500px;}
+label { margin: 5px 0; display: block; }
+.form-row { margin: 20px 0; }
+.form-note { font-size: 12px; color: #888; margin-top: 5px; }
+.form-note code { font-size: 10px; color: #e83e8c }
 .message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none;}
 </style>
 <script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
@@ -12,35 +15,44 @@ a { color: #36c; cursor: pointer; text-decoration: none; outline:none }
 </head>
 <body>
 <h1>Gmail Gerrit Extension Setup</h1>
+<div>
+  Please tell us about your Gerrit instance, so that we know how to talk to it from Gmail.
+</div>
 <form class="options-form">
-  <h3>Settings</h3>
   <div class="message"></div>
   <div class="form-row">
     <div>
-      Gerrit URL: <input id="url" style="width:400px"/>
+      <label>Gerrit URL:</label> <input id="url"/>
     </div>
-    <div class="form-note">The URL where your Gerrit instance is hosted.</div>
+    <div class="form-note">
+      The URL where your Gerrit instance is hosted.  For example, <code>https://gerrit-review.googlesource.com</code>.
+      If your Gerrit code review URLs look like <code>https://something.somewhere.com/287</code>, then you should put
+      <code>https://something.somewhere.com</code> here.
+    </div>
   </div>
   <div class="form-row">
     <div>
-      Enabled Gmail Account: <input id="gmail" style="width:400px"/>
+      <label>Enabled Gmail Account: </label><input id="gmail"/>
     </div>
-    <div class="form-note">The Gmail address that you want to enable the Gerrit plugin for. If left empty, enable for all addresses.</div>
+    <div class="form-note">
+      The Gmail address that you want to enable this extension for. If left empty, the extension is enabled for all addresses.
+    </div>
   </div>
-
-  <h3>Display</h3>
-
   <div class="form-row">
     <div>
-      Context Lines: <input id="context-lines" style="width:400px"/>
+      <label>Context Lines: </label><input id="context-lines"/>
     </div>
     <div class="form-note">Number of context lines to display when showing diffs.</div>
   </div>
   <div class="form-row">
     <div>
-      Bot names: <input id="bot-names" style="width:400px"/>
+      <label>Bot names: </label><input id="bot-names"/>
     </div>
-    <div class="form-note">Comma-separated list of usernames of automated bots that also comment on your Gerrit changes (like jenkins, etc.)</div>
+    <div class="form-note">
+      Comma-separated list of usernames of automated bots that also comment on your Gerrit changes (like jenkins, etc.)
+      This is used to ignore comments made by automated bots when determining status of your code reviews, or
+      figuring out which previous patch set to diff against.
+    </div>
   </div>
 
   <div>
