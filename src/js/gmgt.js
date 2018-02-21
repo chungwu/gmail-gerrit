@@ -1370,12 +1370,13 @@ async function initialize() {
   if (!gSettings.url) {
     // No URL set; forget it
     showNeedSetup();
+    console.log("Gerrit extension still needs to be setup; nevermind.")
     return;
   }
 
   if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
     // Email is set and is not the current gmail account; forget it
-    console.log("Expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
+    console.log("Gerrit extension expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
     return;
   }
 
@@ -1570,6 +1571,31 @@ async function handleKeyPress(e) {
   }
 }
 
-$(function() {
-  setTimeout(initialize, 10000);
+async function waitUntil(condition, delay, maxAttempts) {
+  return new Promise((resolve, reject) => {
+    let attempt = 0;
+    let timer = setInterval(
+      () => {
+        attempt += 1;
+        if (condition()) {
+          clearInterval(timer);
+          resolve();
+        } else if (attempt >= maxAttempts) {
+          clearInterval(timer);
+          reject();
+        }
+      }, delay);
+  });
+}
+
+$(async () => {
+  gmailReady = () => $("div[role=main]:first").length > 0;
+  try {
+    await waitUntil(gmailReady, 1000, 10);
+    console.log("Gmail ready! Gerrit extension starting", window.document.title);
+  } catch(err) {
+    console.log("Failed to wait for Gmail to initialize within 10 seconds");
+    return;
+  }
+  initialize();
 });
