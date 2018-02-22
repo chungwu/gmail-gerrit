@@ -1,5 +1,5 @@
 const gSettings = {};
-
+let dom = null;
 let changeId = null;
 const re_rgid = new RegExp(".*/(\\d+)$");
 
@@ -111,7 +111,7 @@ function renderErrorBox(id, err_msg) {
   $(".status", $header).addClass("red");
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
   if (!gSettings.auth) {
-    makeButton("Login", false, gSettings.url).appendTo($sideBox);
+    makeButton("Login", false, gSettings.url, true).appendTo($sideBox);
     makeButton("Try again").appendTo($sideBox).click(function() {
       renderChange(id);
     });
@@ -205,6 +205,8 @@ function renderBox(id, data) {
 }
 
 async function renderChange(id) {
+  changeId = id;
+
   const $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
   $sideBox.empty().prependTo($sidebarBoxes);
 
@@ -218,7 +220,6 @@ async function renderChange(id) {
     renderErrorBox(id, resp.err_msg);
     return;
   }
-  changeId = id;
   const data = resp.data;
 
   renderBox(id, data);
@@ -253,8 +254,7 @@ async function authenticatedSend(msg) {
 }
 
 function flashMessage(msg) {
-  $(".b8 .vh").text(msg);
-  $(".b8").css("top", "inherit");
+  dom.flashMessage(msg);
 }
 
 async function sendMessage(msg) {
@@ -320,16 +320,17 @@ function renderError(text) {
 }
 
 async function formatThread(reviewData) {
-  const $thread = $("div[role='main'] .nH.if");
+  const $thread = dom.getThread();
   const curId = changeId;
 
-  let numMessages = $(".Bk", $thread).length;
+  let numMessages = dom.getCards($thread).length;
 
   async function checkAndFormat() {
     if (!changeId || curId !== changeId) {
+      observer.disconnect();
       return;
     }
-    const newNumMessages = $(".Bk", $thread).length;
+    const newNumMessages = dom.getCards($thread).length;
     if (newNumMessages > numMessages) {
       const resp = await loadChange(changeId);
       if (!resp.success) {
@@ -345,27 +346,30 @@ async function formatThread(reviewData) {
     }
   }
 
-  function doFormat() {
-    $(".Bk", $thread).not(".gerrit-formatted").each(function() {
-      if ($(this).html().indexOf("gmail_quote") >= 0) {
-        // someone sent this email directly; don't format.
-        // TODO: we need a much better way of detecting this!
-        $(this).addClass("gerrit-formatted");
-        return;
-      }
+  const observer = new MutationObserver(checkAndFormat);
+  observer.observe($thread[0], {childList: true, subtree: true});
 
+  function doFormat() {
+    dom.getCards($thread).each(function() {
       formatCard($(this), reviewData);
     });
-    setTimeout(checkAndFormat, 1000);
   }
 
   doFormat();
 }
 
 function formatCard($card, reviewData) {
-  const $msg = $($(".ii div", $card)[0]);
-  const text = $msg.text();
+  const $msg = dom.getMessage($card);
+  if ($msg.length == 0 || $msg.data("gerritFormatted")) {
+    return;
+  } else if ($msg.html().indexOf("gmail_quote") >= 0) {
+    // someone sent this email directly; don't format.
+    // TODO: we need a much better way of detecting this!
+    $msg.data("gerritFormatted", true);
+    return;
+  }
 
+  const text = $msg.text();
   if (!$.trim(text)) {
     return;
   }
@@ -381,7 +385,7 @@ function formatCard($card, reviewData) {
   } else if (/Gerrit-MessageType: newpatchset/gm.test(text)) {
     formatNewPatch($card, $msg, text, reviewData);
   }
-  $card.addClass("gerrit-formatted");
+  $card.data("gerritFormatted", true);
 }
 
 function getRevisionIdByPatchNumber(reviewData, patchNumber) {
@@ -427,10 +431,12 @@ function extractCommitMessage(commit) {
 
 function renderRevisionDiff(reviewData, revId, baseId) {
   const $container = $("<div/>");
-  const $toggle = $("<div class='T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO show-diffs-button'/>")
-    .text("Show diffs")
-    .css({fontWeight: "bold", margin: "10px 0"})
-    .click(function() {
+  const $buttons = $("<div/>").appendTo($container);
+  const $toggle = makeButton("Show diffs")
+    .appendTo($buttons)
+    .addClass("show-diffs-button")
+    .css({margin: "10px 0"})
+    .click(() => {
       if ($toggle.hasClass("showing")) {
         $toggle.text("Show diffs");
         $box.hide();
@@ -438,7 +444,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       } else {
         showBox();
       }
-    }).appendTo($container);  
+    });
 
   function showBox() {
     $toggle.text("Hide diffs");
@@ -462,7 +468,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       renderFileBox(reviewData, revId, file, baseId).appendTo($box);
     }
   
-    const $comment = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+    const $comment = makeButton("Submit Comments", false, undefined, true).click(function() { collectAndSubmitComments(false); });
     const $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
     const replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
     replyWidget.getWidget().addClass("primary").appendTo($box);
@@ -743,9 +749,11 @@ function segmentEdits(lines, edits) {
   return buffer;
 }
 
-function makeButton(text, small, href) {
-  const href2 = href || "javascript: void 0;";
-  const $button = $("<a class='gerrit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'/>").prop("href", href2).text(text);
+function makeButton(text, small, href, primary) {
+  const $button = dom.makeButton(primary).text(text);
+  if (href) {
+    $button.prop("href", href);
+  }
   if (small) {
     $button.addClass("gerrit-button-small");
   }
@@ -909,7 +917,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
   $msg.empty();
   const $commentsBox = $("<div/>");
   $msg.append($commentsBox);
-  const $submit = makeButton("Submit Comments").click(function() { collectAndSubmitComments(false); });
+  const $submit = makeButton("Submit Comments", false, undefined, true).click(function() { collectAndSubmitComments(false); });
   const $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
   messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
@@ -1382,13 +1390,11 @@ async function initialize() {
 
   console.log("Running Gerrit plugin!");
 
-  $(window).bind("hashchange", function() {
-    setTimeout(checkPage, 100);
-  });
   setTimeout(function() {
     $("body").keypress(handleKeyPress);
     checkPage();
   }, 3000);
+  dom.onModeChange(checkPage);
 
   const resp = await authenticate();
   if (resp.success) {
@@ -1419,12 +1425,17 @@ function detectMode() {
 }
 
 function extractDiffId() {
-  const $thread = $("div[role='main']");
+  const $thread = dom.getThread();
+  const prevId = $thread.data("gerritDiffId");
+  if (prevId) {
+    return prevId;
+  }
   const $anchor = $("a[href*='" + gSettings.url + "']", $thread);
   for (let i = 0; i < $anchor.length; i++) {
     const url = $($anchor[i]).attr("href");
     const id = extractDiffIdFromUrl(url);
     if (id) {
+      $thread.data("gerritDiffId", id);
       return id;
     }
   }
@@ -1432,16 +1443,24 @@ function extractDiffId() {
 }
 
 function checkPage() {
-  const mode = detectMode();
-  console.log("Gmail in mode", mode);
-  if (mode === "thread") {
-    checkDiff();
-  } else if (mode === "threadlist") {
-    clearDiff();
+  if (dom.isShowingThreadList()) {
     checkThreads();
+  }
+  if (dom.isShowingThread()) {
+    checkDiff();
   } else {
     clearDiff();
   }
+  // const mode = detectMode();
+  // console.log("Gmail in mode", mode);
+  // if (mode === "thread") {
+  //   checkDiff();
+  // } else if (mode === "threadlist") {
+  //   clearDiff();
+  //   checkThreads();
+  // } else {
+  //   clearDiff();
+  // }
 }
 
 async function checkThreads() {
@@ -1542,8 +1561,8 @@ function annotateSubject($subject, change) {
 
 function checkDiff() {
   const id = extractDiffId();
-  console.log("Found change", id);
   if (id !== changeId) {
+    console.log("Found change", id);
     clearDiff();
     if (id) {
       renderChange(id);
@@ -1588,10 +1607,112 @@ async function waitUntil(condition, delay, maxAttempts) {
   });
 }
 
+function getGmailType() {
+  const href = window.location.href;
+  if (href.startsWith('https://mail.google.com')) {
+    return "gmail";
+  } else if (href.startsWith("https://inbox.google.com")) {
+    return "inbox";
+  } else {
+    return undefined;
+  }
+}
+
+class GmailDom {
+  ready() {
+    return $("div[role=main]:first").length > 0;
+  }
+  isShowingThread() {
+    return $("div[role='main'] table[role='presentation']").length > 0;
+  }
+  isShowingThreadList() {
+    return $("div[role='main'] table.F.cf.zt").length > 0;
+  }
+  getThread() {
+    return $("div[role='main'] .nH.if");
+  }
+  getCards($thread) {
+    return $(".Bk", $thread);
+  }
+  getMessage($card) {
+    return $($(".ii div", $card)[0]);
+  }
+  makeButton(primary) {
+    const $button = $("<a class='gerrit-button gerrit-button--gmail T-I J-J5-Ji lR ar7 T-I-JO'/>");
+    if (primary) {
+      $button.addClass("gerrit-button--primary T-I-atl");
+    } else {
+      $button.addClass("T-I-ax7");
+    }
+    return $button;
+  }
+  onModeChange(handler) {
+    $(window).bind("hashchange", () => {
+      setTimeout(handler, 100);
+    });
+  }
+  flashMessage(message) {
+    $(".b8 .vh").text(msg);
+    $(".b8").css("top", "inherit");
+  }
+}
+
+class InboxDom {
+  ready() {
+    return $("div[role=main]:first").length > 0;
+  }
+  isShowingThread() {
+    return $(".scroll-list-item-open").length > 0;
+  }
+  isShowingThreadList() {
+    return true;
+  }
+  getThread() {
+    return $(".scroll-list-item-open");
+  }
+  getCards($thread) {
+    return $(".ap.s2", $thread);
+  }
+  getMessage($card) {
+    return $(".b5", $card);
+  }
+  makeButton(primary) {
+    if (primary) {
+      return $("<a class='sY dy Go qj gerrit-button--primary'/>");
+    } else {
+      return $("<a class='gerrit-button gerrit-button--inbox Jc H dH'/>");
+    }
+    return $button;
+  }
+  onModeChange(handler) {
+    const observer = new MutationObserver((mutations) => {
+      handler();
+    });
+    observer.observe($(".tE")[0], {childList: true, subtree: true});
+  }
+  flashMessage(message) {
+    const $banner = $($("#Hg .sf")[0]);
+    const $msg = $($("span", $banner)[1]);
+    $msg.text(message).css("display", "inline");
+    $banner.removeClass("l2").removeClass("lU").addClass("ov");
+  }
+}
+
 $(async () => {
-  gmailReady = () => $("div[role=main]:first").length > 0;
+  const gmailType = getGmailType();
+  if (gmailType == "gmail") {
+    console.log("Gmail mode");
+    dom = new GmailDom();
+  } else if (gmailType == "inbox") {
+    console.log("Inbox mode");
+    dom = new InboxDom();
+  } else {
+    console.log("Unknown Gmail type; quitting");
+    return;
+  }
+
   try {
-    await waitUntil(gmailReady, 1000, 10);
+    await waitUntil(dom.ready, 1000, 10);
     console.log("Gmail ready! Gerrit extension starting", window.document.title);
   } catch(err) {
     console.log("Failed to wait for Gmail to initialize within 10 seconds");

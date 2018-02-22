@@ -1,8 +1,8 @@
 .gerrit-box.gerrit-sidebox {
-  margin-bottom: 10px;
+  margin: 0 10px 10px 10px;
   padding: 10px 0;
   border-bottom: 1px solid #d8d8d8;
-  margin-left: 10px
+  position: fixed;
 }
 
 .gerrit-box h4 {
@@ -29,16 +29,32 @@
   margin-bottom: 10px;
 }
 
-.gerrit-button-small {
+.gerrit-button--inbox.gerrit-button--primary {
+  color: #3367d6;
+}
+
+.gerrit-button--gmail.gerrit-button--primary {
+  font-weight: bold;
+  color: #fff;
+}
+
+.gerrit-button--gmail.gerrit-button-small {
   font-size: 9px !important;
   padding: 0 !important;
   height: 16px !important;
   line-height: 16px !important;
 }
 
+.gerrit-button--inbox.gerrit-button-small {
+  font-size: 9px !important;
+}
+
 a.gerrit-button {
   text-decoration: none;
-  color: #444 !important;
+}
+
+a.gerrit-button--gmail {
+  color: #444;
 }
 
 .gerrit-button.error-button {
