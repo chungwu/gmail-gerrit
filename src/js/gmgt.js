@@ -3,46 +3,6 @@ let dom = null;
 let changeId = null;
 const re_rgid = new RegExp(".*/(\\d+)$");
 
-const infoBoxHeader = (
-  "<h4><img title='Gerrit' src='${chrome.extension.getURL(\"icons/gerrit-big.png\")}'> <a href='${gerritUrl}/${diffId}' target='_blank'>${diffId}</a>: <span class='status'>${status}</span></h4>"
-);
-
-$.template("infoBoxHeader", infoBoxHeader);
-
-const infoBox = (
-  "<div>" +
-    "<div class='note reviewers'>" +
-      "<span class='note-title'>Reviewers: </span>" +
-      "{%if !reviewers || reviewers.length == 0%}" +
-        "None" +
-      "{%else%}" +
-        "{%each(i, reviewer) reviewers%}" +
-          "${i > 0 ? ', ' : ''}<span class='${reviewer.labels.indexOf(\"Code-Review+2\") >= 0 ? \"reviewer-approved\" : reviewer.labels.indexOf(\"Verified+1\") >= 0 ? \"reviewer-verified\" : reviewer.labels.join(',').indexOf(\"Code-Review-\") >= 0 ? \"reviewer-approved-failed\" : reviewer.labels.join(',').indexOf(\"Verified-\") >= 0 ? \"reviewer-verified-failed\" : \"\"}'>${reviewer.name || reviewer.login}</span>" +
-        "{%/each%}" +
-      "{%/if%}" +
-    "</div>" +
-    "<div>" +
-      "<span class='gerrit-button view-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>View</span>" +
-      "<a class='gerrit-button error-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO red' target='_blank'>See Error</a>" +
-      "<span class='gerrit-button comment-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Comment</span>" +
-    "</div>" +
-    "<div>" +
-      "<span class='gerrit-button action-button approve-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Approve</span>" +
-      "<span class='gerrit-button action-button approve-comment-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; comment</span>" +
-      "<span class='gerrit-button action-button approve-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; submit</span>" +
-    "</div>" +
-    "<div>" +
-      "<span class='gerrit-button action-button submit-button T-I J-J5-Ji lR T-I-ax7 ar7 T-I-JO'>Submit</span>" +
-    "</div>" +
-    "<div>" +
-      "<span class='gerrit-button action-button rebase-button T-I J-J5-Ji lR T-I-ax7 T-I-Js-IF ar7 T-I-JO'>Rebase</span>" +
-      "<span class='gerrit-button action-button rebase-submit-button T-I J-J5-Ji nX T-I-ax7 T-I-Js-Gs ar7 T-I-JO'>&amp; submit</span>" +
-    "</div>" +
-  "</div>"
-);
-
-$.template("infoBox", infoBox);
-
 const $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
 
 function labeledValue(label, value) {
@@ -84,7 +44,6 @@ function extractReviewers(data) {
       reviewers[rk] = mkrev(rev);
     }
   }
-  console.log("REVIEWERS", reviewers);
   return _.values(reviewers);
 }
 
@@ -107,65 +66,69 @@ function performActionCallback(id, resp) {
 
 function renderErrorBox(id, err_msg) {
   $sideBox.empty();
-  const $header = $.tmpl("infoBoxHeader", {diffId: id, status: 'Error', gerritUrl: gSettings.url}).appendTo($sideBox);
-  $(".status", $header).addClass("red");
+  makeInfoBoxHeader(id, "Error").appendTo($sideBox);
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
   if (!gSettings.auth) {
-    makeButton("Login", false, gSettings.url, true).appendTo($sideBox);
-    makeButton("Try again").appendTo($sideBox).click(function() {
-      renderChange(id);
-    });
+    $("<div class='gerrit-sidebox-buttons'/>").appendTo($sideBox)
+      .append(makeButton("Login", false, gSettings.url, true).appendTo($sideBox))
+      .append(makeButton("Try again").appendTo($sideBox).click(() => renderChange(id)));
   }
 }
 
-function renderBox(id, data) {
+function makeInfoBoxHeader(id, status) {
+  const $header = $("<h4/>");
+  $("<img title='Gerrit'/>").prop("src", chrome.extension.getURL("icons/gerrit-big.png")).appendTo($header);
+  const $link = $("<a target='_blank'/>").prop("href", `gSettings.url/${id}`).text(id).appendTo($header);
+  $("<span>: </span>").appendTo($header);
+  const $status = $("<span class='status'/>").text(status).appendTo($header);
+  if (status == "Error" || status == "Failed Verify" || status == "Rejected") {
+    $status.addClass("red");
+  } else if (status == "Approved" || status == "Merged") {
+    $status.addClass("green");
+  }
+  return $header;
+}
+
+function renderBox(id, reviewData) {
   $sideBox.empty();
 
-  const status = reviewStatus(data);
-  const isOwner = isChangeOwner(data);
-  const isReviewer = isChangeReviewer(data);
-  const reviewers = extractReviewers(data);
+  const status = reviewStatus(reviewData);
+  const isOwner = isChangeOwner(reviewData);
+  const isReviewer = isChangeReviewer(reviewData);
+  const reviewers = extractReviewers(reviewData);
 
-  const $header = $.tmpl("infoBoxHeader", {diffId: id, status: status, gerritUrl: gSettings.url}).appendTo($sideBox);
+  makeInfoBoxHeader(id, status).appendTo($sideBox);
 
-  const $info = $.tmpl("infoBox", {
-    diffId: id, reviewers: reviewers
-  }).appendTo($sideBox);
+  const $content = $("<div class='gerrit-sidebox-content'/>").appendTo($sideBox);
+  const $reviewers = $("<div class='note reviewers'/>").appendTo($content);
+  $("<span class='note-title'/>").text("Reviewers: ").appendTo($reviewers);
+  _.forEach(reviewers, (reviewer, index) => {
+    const allLabels = reviewer.labels.join(",");
+    const reviewerClass = (
+      allLabels.indexOf("Code-Review+2") >= 0 ?
+        "reviewer-approved" :
+      allLabels.indexOf("Verified+1") >= 0 ?
+        "reviewer-verified" :
+      allLabels.indexOf("Code-Review-") >= 0 ?
+        "reviewer-approved-failed" :
+      allLabels.indexOf("Verified-") >= 0 ?
+        "reviewer-verified-failed" :
+      ""
+    );
+    const $reviewer = $("<span/>").addClass(reviewerClass).text(reviewer.name || reviewer.login);
+    if (index > 0) {
+      $("<span>, </span>").appendTo($reviewers);
+    }
+    $reviewer.appendTo($reviewers);
+  });
 
-  const $status = $(".status", $header);
-  $(".action-button", $info).hide();
-  if (status === "Approved") {
-    $status.addClass("green");
-    if (isOwner) {
-      $(".submit-button", $info).show();
-      /*
-      if (!data.mergeable) {
-        $(".rebase-button", $info).show();
-        $(".rebase-submit-button", $info).show();
-      }
-      */
-    }
-  } else if (status === "Merge Pending") {
-    if (isOwner) {
-      $(".rebase-button", $info).show();
-      $(".rebase-submit-button", $info).show();
-    }
-  } else if (status === "Merged") {
-    $status.addClass("green");
-  } else if (status === "Failed Verify" || status === "Rejected") {
-    $status.addClass("red");
-  } else {
-    if (isReviewer || isOwner) {
-      $(".approve-button", $info).show();
-    }
-    if (isOwner) {
-      $(".approve-submit-button", $info).show();
-    } else if (isReviewer) {
-      $(".approve-comment-button", $info).show();
-    }
+  const perform = async (promise) => {
+    const resp = await promise;
+    performActionCallback(id, resp);
   }
 
-  $(".error-button", $info).hide();
+  const $basicButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
+  $basicButtons.append(makeButton("View").click(() => viewDiff(id)));
   if (status === "Failed Verify") {
     const lastFailedMessageIndex = _.findLastIndex(data.messages, m => isBot(m.author.username) && m.message.indexOf("Verified-1") >= 0);
     if (lastFailedMessageIndex >= 0) {
@@ -173,46 +136,40 @@ function renderBox(id, data) {
       const links = linkify.find(failedMessage);
       if (links.length > 0) {
         const link = links[0].href;
-        $(".error-button", $info).prop("href", link).show();
+        $basicButtons.append(makeButton("See Error", false, link).addClass("error-button"));
       }
     }
   }
+  $basicButtons.append(makeButton("Comment").click(() => perform(commentDiff(id, false, true))));
 
-  $(".gerrit-button", $info).click(async function() {
-    const $this = $(this);
-    let resp = null;
-    if ($this.hasClass("view-button")) {
-      viewDiff(id);
-    } else if ($this.hasClass("comment-button")) {
-      resp = await commentDiff(id, false, true);
-    } else if ($this.hasClass("approve-button")) {
-      resp = await commentDiff(id, true, false);
-    } else if ($this.hasClass("approve-comment-button")) {
-      resp = await commentDiff(id, true, true);
-    } else if ($this.hasClass("approve-submit-button")) {
-      resp = await approveSubmitDiff(id);
-    } else if ($this.hasClass("submit-button")) {
-      resp = await submitDiff(id);
-    } else if ($this.hasClass("rebase-submit-button")) {
-      resp = await rebaseSubmitChange(id);
-    } else if ($this.hasClass("rebase-button")) {
-      resp = await rebaseChange(id);
+  if (status === "Approved") {
+    if (isOwner) {
+      $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
+        .append(makeButton("Submit").addClass("submit-button").click(() => perform(submitDiff(id))));
     }
-    if (resp) {
-      performActionCallback(id, resp);
+  } else if (status === "Merge Pending") {
+    if (isOwner) {
+      $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
+        .append(makeButton("Rebase").click(() => perform(rebaseChange(id))))
+        .append(makeButton("& submit").click(() => perform(rebaseSubmitChange(id))));
     }
-  });
+  } else if (isReviewer || isOwner) {
+    const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
+    $approveButtons.append(makeButton("Approve").click(() => perform(commentDiff(id, true, false))));
+    if (isOwner) {
+      $approveButtons.append(makeButton("& submit").click(() => perform(approveSubmitDiff(id))));
+    } else if (isReviewer) {
+      $approveButtons.append(makeButton("& comment").click(() => perform(commentDiff(id, true, true))));
+    }
+  }
+  return $content;
 }
 
 async function renderChange(id) {
   changeId = id;
 
-  const $sidebarBoxes = $("div[role='main'] .nH.adC > .nH:first-child");
+  const $sidebarBoxes = dom.sideBoxContainer();
   $sideBox.empty().prependTo($sidebarBoxes);
-
-  // Show the actual sidebar, hidden by default
-  $(".Bu.y3").css("width", 220);
-  $(".nH.bno.adC").css("position", "static").css("width", "auto");
 
   const resp = await loadChange(id);
   console.log("Loaded change", resp);
@@ -328,6 +285,7 @@ async function formatThread(reviewData) {
   async function checkAndFormat() {
     if (!changeId || curId !== changeId) {
       observer.disconnect();
+      $thread.data("gerritDiffId", undefined);
       return;
     }
     const newNumMessages = dom.getCards($thread).length;
@@ -1451,16 +1409,6 @@ function checkPage() {
   } else {
     clearDiff();
   }
-  // const mode = detectMode();
-  // console.log("Gmail in mode", mode);
-  // if (mode === "thread") {
-  //   checkDiff();
-  // } else if (mode === "threadlist") {
-  //   clearDiff();
-  //   checkThreads();
-  // } else {
-  //   clearDiff();
-  // }
 }
 
 async function checkThreads() {
@@ -1655,6 +1603,17 @@ class GmailDom {
     $(".b8 .vh").text(msg);
     $(".b8").css("top", "inherit");
   }
+  sideBoxContainer() {
+    // Show the actual sidebar, hidden by default
+    $(".Bu.y3").css("width", 220);
+    $(".nH.bno.adC").css("position", "static").css("width", "auto");    
+    const $sidebar = $("div[role='main'] .nH.adC > .nH:first-child");
+    const $container = $(".gerrit-sidebox-container--gmail", $sidebar);
+    if ($container.length > 0) {
+      return $container;
+    }
+    return $("<div class='gerrit-sidebox-container--gmail'/>").appendTo($sidebar);
+  }
 }
 
 class InboxDom {
@@ -1668,7 +1627,7 @@ class InboxDom {
     return true;
   }
   getThread() {
-    return $(".scroll-list-item-open");
+    return $(".scroll-list-item-open.scroll-list-item-highlighted");
   }
   getCards($thread) {
     return $(".ap.s2", $thread);
@@ -1678,7 +1637,7 @@ class InboxDom {
   }
   makeButton(primary) {
     if (primary) {
-      return $("<a class='sY dy Go qj gerrit-button--primary'/>");
+      return $("<a class='gerrit-button gerrit-button--inbox sY dy Go qj gerrit-button--primary'/>");
     } else {
       return $("<a class='gerrit-button gerrit-button--inbox Jc H dH'/>");
     }
@@ -1688,7 +1647,7 @@ class InboxDom {
     const observer = new MutationObserver((mutations) => {
       handler();
     });
-    observer.observe($(".tE")[0], {childList: true, subtree: true});
+    observer.observe($("#Nr")[0], {childList: true, subtree: true});
   }
   flashMessage(message) {
     const $banner = $($("#Hg .sf")[0]);
@@ -1696,15 +1655,25 @@ class InboxDom {
     $msg.text(message).css("display", "inline");
     $banner.removeClass("l2").removeClass("lU").addClass("ov");
   }
+  sideBoxContainer() {
+    const $thread = this.getThread();
+    const $header = $(".bH", $thread);
+    const $container = $(".gerrit-sidebox-container--inbox", $header);
+    if ($container.length > 0) {
+      return $container;
+    } else {
+      return $("<div class='gerrit-sidebox-container--inbox'/>").appendTo($header);
+    }
+  }
 }
 
 $(async () => {
   const gmailType = getGmailType();
   if (gmailType == "gmail") {
-    console.log("Gmail mode");
+    console.log("Gerrit: Gmail mode");
     dom = new GmailDom();
   } else if (gmailType == "inbox") {
-    console.log("Inbox mode");
+    console.log("Gerrit: Inbox mode");
     dom = new InboxDom();
   } else {
     console.log("Unknown Gmail type; quitting");

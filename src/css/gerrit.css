@@ -1,12 +1,5 @@
-.gerrit-box.gerrit-sidebox {
-  margin: 0 10px 10px 10px;
-  padding: 10px 0;
-  border-bottom: 1px solid #d8d8d8;
-  position: fixed;
-}
-
 .gerrit-box h4 {
-  margin: 10px 0;
+  margin: 0;
 }
 .gerrit-box h4 img {
   height: 25px;
@@ -29,6 +22,51 @@
   margin-bottom: 10px;
 }
 
+.gerrit-sidebox-container--gmail {
+  margin: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #d8d8d8;
+  position: fixed;
+}
+
+.gerrit-sidebox-container--inbox {
+  position: static;
+  padding: 0 20px 20px;
+  margin-top: -10px;
+  background-color: #fff;
+}
+
+.gerrit-sidebox-container--inbox h4, .gerrit-sidebox-container--inbox div {
+  display: inline;
+}
+
+.gerrit-sidebox-container--inbox .gerrit-box .note {
+  display: inline;
+  margin-left: 10px;
+  margin-right: 5px;
+}
+
+.gerrit-sidebox-container--inbox .gerrit-box .note::before {
+  content: "\2022";
+  display: inline;
+  margin-right: 10px;
+  color: #888;
+}
+
+.gerrit-sidebox-container--inbox .gerrit-box .gerrit-sidebox-buttons::before {
+  content: "\2022";
+  display: inline;
+  margin-left: 5px;
+  margin-right: 5px;
+  color: #888;
+}
+
+.gerrit-sidebox-container--inbox .gerrit-button {
+  margin-bottom: 0;
+  font-size: 10px;
+  padding: 0 8px;
+}
+
 .gerrit-button--inbox.gerrit-button--primary {
   color: #3367d6;
 }
@@ -39,14 +77,14 @@
 }
 
 .gerrit-button--gmail.gerrit-button-small {
-  font-size: 9px !important;
+  font-size: 10px !important;
   padding: 0 !important;
   height: 16px !important;
   line-height: 16px !important;
 }
 
 .gerrit-button--inbox.gerrit-button-small {
-  font-size: 9px !important;
+  font-size: 10px !important;
 }
 
 a.gerrit-button {
