@@ -304,7 +304,7 @@ async function formatThread(reviewData) {
     }
   }
 
-  const observer = new MutationObserver(checkAndFormat);
+  const observer = new MutationObserver(_.debounce(checkAndFormat, 500));
   observer.observe($thread[0], {childList: true, subtree: true});
 
   function doFormat() {
@@ -1348,20 +1348,8 @@ async function initialize() {
 
   console.log("Running Gerrit plugin!");
 
-  setTimeout(function() {
-    $("body").keypress(handleKeyPress);
-    checkPage();
-  }, 3000);
-  dom.onModeChange(checkPage);
-
-  const resp = await authenticate();
-  if (resp.success) {
-    console.log("Authenticated!");
-    checkPage();
-  } else {
-    console.log("Not authenticated!");
-    showNeedLogin();
-  }
+  setTimeout(() => $("body").keypress(handleKeyPress), 3000);
+  dom.onDomChanged(checkDiff, checkThreads, clearDiff);
 }
 
 function extractDiffIdFromUrl(url) {
@@ -1370,16 +1358,6 @@ function extractDiffIdFromUrl(url) {
     return m[1];
   }
   return null;
-}
-
-function detectMode() {
-  if ($("div[role='main'] table[role='presentation']").length > 0) {
-    return "thread";
-  } else if ($("div[role='main'] table.F.cf.zt").length > 0) {
-    return "threadlist";
-  } else {
-    return "unknown";
-  }
 }
 
 function extractDiffId() {
@@ -1400,19 +1378,8 @@ function extractDiffId() {
   return null;
 }
 
-function checkPage() {
-  if (dom.isShowingThreadList()) {
-    checkThreads();
-  }
-  if (dom.isShowingThread()) {
-    checkDiff();
-  } else {
-    clearDiff();
-  }
-}
-
 async function checkThreads() {
-  const $subjects = $("div[role='main'] table.F.cf.zt td div[role='link'] div.y6 span:first-child");
+  const $subjects = dom.getSubjects();
   if ($subjects.length === 0) {
     return;
   }
@@ -1426,7 +1393,6 @@ async function checkThreads() {
     }
     annotateThreads($subjects, resp.data);
   }
-  setTimeout(checkThreads, 5000);
 }
 
 function annotateThreads($subjects, changes) {
@@ -1459,28 +1425,8 @@ function annotateThreads($subjects, changes) {
 }
 
 function annotateSubject($subject, change) {
-  let $button = $(".gerrit-threadlist-button", $subject.closest("td"));
-  let $status, $topic;
-  if ($button.length > 0) {
-    // console.log("Already annotated; reusing", $button);
-    $status = $(".gerrit-threadlist-status", $button);
-    $topic = $(".gerrit-threadlist-topic", $button);
-  } else {
-    const $parentLink = $subject.closest("div[role='link']");
-    $parentLink.wrap("<div class='a4X' style='padding-right:30ex;'/>");
-    const $panel = $("<span/>").addClass("aKS").insertAfter($parentLink);
-    $button = $("<div/>").addClass("T-I J-J5-Ji aOd aS9 T-I-awv L3 gerrit-threadlist-button").prop("role", "button").click(function() { viewDiff(change._number); }).appendTo($panel);
-    $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
-    $status = $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-status").appendTo($button);
-    $topic = $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-topic").appendTo($button);
-  }
-
   const status = reviewStatus(change);
-  $status.text(status);
-
-  if (change.topic) {
-    $topic.text(" [" + change.topic + "]");
-  }
+  const $button = dom.annotateSubject($subject, status, change.topic).click(() => viewDiff(change._number));
 
   const isOwner = isChangeOwner(change);
 
@@ -1502,9 +1448,6 @@ function annotateSubject($subject, change) {
   if (["To Review", "To Respond"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--action");
   }
-
-  const $wrapper = $subject.closest(".a4X");
-  $wrapper.css("padding-right", $button.outerWidth() + 10 + "px");
 }
 
 function checkDiff() {
@@ -1594,10 +1537,23 @@ class GmailDom {
     }
     return $button;
   }
-  onModeChange(handler) {
-    $(window).bind("hashchange", () => {
-      setTimeout(handler, 100);
-    });
+  onDomChanged(handleDiff, handleThreads, handleClearDiff) {
+    let newThreadsCheckerId = undefined;
+
+    const check = () => {
+      if (this.isShowingThread()) {
+        clearInterval(newThreadsCheckerId);
+        handleDiff();
+      } else if (this.isShowingThreadList()) {
+        handleThreads();
+        newThreadsCheckerId = setInterval(handleThreads, 5000);
+      } else {
+        clearInterval(newThreadsCheckerId);
+        handleClearDiff();
+      }
+    }
+    $(window).bind("hashchange", () => setTimeout(check, 100));
+    check();
   }
   flashMessage(message) {
     $(".b8 .vh").text(msg);
@@ -1613,6 +1569,28 @@ class GmailDom {
       return $container;
     }
     return $("<div class='gerrit-sidebox-container--gmail'/>").appendTo($sidebar);
+  }
+  getSubjects() {
+    return $("div[role='main'] table.F.cf.zt td div[role='link'] div.y6 span:first-child");
+  }
+  
+  annotateSubject($subject, status, topic) {
+    let $button = $(".gerrit-threadlist-button", $subject.closest("td"));
+    if ($button.length > 0) {
+      return $button;
+    } 
+    const $parentLink = $subject.closest("div[role='link']");
+    $parentLink.wrap("<div class='a4X' style='padding-right:30ex;'/>");
+    const $panel = $("<span/>").addClass("aKS").insertAfter($parentLink);
+    $button = $("<div/>").addClass("T-I J-J5-Ji aOd aS9 T-I-awv L3 gerrit-threadlist-button").prop("role", "button").appendTo($panel);
+    $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
+    $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-status").appendTo($button).text(status);
+    $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-topic").appendTo($button).text(topic ? ` [${topic}]` : "");
+
+    const $wrapper = $subject.closest(".a4X");
+    $wrapper.css("padding-right", $button.outerWidth() + 10 + "px");
+
+    return $button;
   }
 }
 
@@ -1643,11 +1621,18 @@ class InboxDom {
     }
     return $button;
   }
-  onModeChange(handler) {
-    const observer = new MutationObserver((mutations) => {
-      handler();
-    });
+  onDomChanged(handleDiff, handleThreads, handleClearDiff) {
+    const check = () => {
+      if (this.isShowingThread()) {
+        handleDiff();
+      } else {
+        handleClearDiff();
+      }
+      handleThreads();
+    };
+    const observer = new MutationObserver(_.debounce(check, 500));
     observer.observe($("#Nr")[0], {childList: true, subtree: true});
+    check();
   }
   flashMessage(message) {
     const $banner = $($("#Hg .sf")[0]);
@@ -1664,6 +1649,22 @@ class InboxDom {
     } else {
       return $("<div class='gerrit-sidebox-container--inbox'/>").appendTo($header);
     }
+  }
+  getSubjects() {
+    return $(".scroll-list-item .bg span:first-child");
+  }
+  annotateSubject($subject, status, topic) {
+    const $panel = $subject.closest(".No");
+    let $button = $(".gerrit-threadlist-button", $panel);
+    if ($button.length > 0) {
+      return $button;
+    } 
+    $button = $("<div/>").addClass("gerrit-threadlist-button gerrit-threadlist-button--inbox").prop("role", "button").appendTo($panel);
+    $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
+    $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-status").appendTo($button).text(status);
+    $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-topic").appendTo($button).text(topic ? ` [${topic}]` : "");
+
+    return $button;    
   }
 }
 

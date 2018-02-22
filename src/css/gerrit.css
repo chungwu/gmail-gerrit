@@ -346,6 +346,14 @@ textarea.gerrit-reply {
   margin-left: 5px;
 }
 
+.gerrit-threadlist-button--inbox {
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 0 12px;
+  background-color: #f6f6f6;
+  margin-left: 5px;
+}
+
 .gerrit-threadlist-button--muted {
   opacity: 0.6;
 }
