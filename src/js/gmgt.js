@@ -1348,15 +1348,18 @@ function hidePageAction() {
 function showNeedSetup() {
   tracker.sendAppView("need_setup");
   sendMessage({type: "showSetup"});
+  tracker.set("dimension2", "unconfigured");
 }
 
 function showNeedLogin() {
   tracker.sendAppView("need_login");
   sendMessage({type: "showLogin"});
+  tracker.set("dimension2", "unauthenticated");
 }
 
 function showSuccess() {
   sendMessage({type: "showSuccess"});
+  tracker.set("dimension2", "connected");
 }
 
 async function loadSettings() {
