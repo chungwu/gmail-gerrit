@@ -16,17 +16,19 @@
       "js/underscore-min.js", 
       "js/linkify.min.js", 
       "js/linkify-string.min.js", 
+      "js/google-analytics-bundle.js",
       "js/gmgt.js"
     ],
     "css": ["css/gerrit.css"],
-    "matches": ["http://mail.google.com/*", "https://mail.google.com/*", "https://inbox.google.com/*"]
+    "matches": ["https://mail.google.com/*", "https://inbox.google.com/*"]
   }],
   "page_action": {
     "default_icon": "icons/gerrit.png",
     "default_popup": "popup.html"
   },
   "permissions": [
-    "cookies", "tabs", "http://mail.google.com/", "https://mail.google.com/", "http://*/", "https://*/"
+    "cookies", "tabs", "storage", 
+    "http://*/", "https://*/"
   ],
   "web_accessible_resources": [
     "icons/gerrit-big.png",

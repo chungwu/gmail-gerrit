@@ -11,6 +11,7 @@ label { margin: 5px 0; display: block; }
 .message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none;}
 </style>
 <script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
+<script type="text/javascript" src="js/google-analytics-bundle.js"></script>
 <script type="text/javascript" src="js/options.js"></script>
 </head>
 <body>
@@ -52,6 +53,14 @@ label { margin: 5px 0; display: block; }
       Comma-separated list of usernames of automated bots that also comment on your Gerrit changes (like jenkins, etc.)
       This is used to ignore comments made by automated bots when determining status of your code reviews, or
       figuring out which previous patch set to diff against.
+    </div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label><input id="allow-tracking" type="checkbox" style="width: auto" checked/> Allow anonymous usage tracking</label>
+    </div>
+    <div class="form-note">
+      Help us improve the extension!
     </div>
   </div>
 

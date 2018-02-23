@@ -1,6 +1,7 @@
 const gSettings = {};
 let dom = null;
 let changeId = null;
+let tracker = null;
 const re_rgid = new RegExp(".*/(\\d+)$");
 
 const $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
@@ -122,47 +123,60 @@ function renderBox(id, reviewData) {
     $reviewer.appendTo($reviewers);
   });
 
-  const perform = async (promise) => {
+  const perform = async (action, promise) => {
     const resp = await promise;
-    performActionCallback(id, resp);
+    if (promise) {
+      performActionCallback(id, resp);
+      tracker.sendEvent("infobox", "click", action);
+    }
   }
 
   const $basicButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
-  $basicButtons.append(makeButton("View").click(() => viewDiff(id)));
+  $basicButtons.append(makeButton("View").click(() => {
+    viewDiff(id)
+    tracker.sendEvent("infobox", "click", "view");
+  }));
   if (status === "Failed Verify") {
-    const lastFailedMessageIndex = _.findLastIndex(data.messages, m => isBot(m.author.username) && m.message.indexOf("Verified-1") >= 0);
-    if (lastFailedMessageIndex >= 0) {
-      const failedMessage = data.messages[lastFailedMessageIndex].message;
-      const links = linkify.find(failedMessage);
-      if (links.length > 0) {
-        const link = links[0].href;
-        $basicButtons.append(makeButton("See Error", false, link).addClass("error-button"));
-      }
+    const link = findFailedLink(reviewData);
+    if (link) {
+      $basicButtons.append(makeButton("See Error", false, link).addClass("error-button"));
     }
   }
-  $basicButtons.append(makeButton("Comment").click(() => perform(commentDiff(id, false, true))));
+  $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, false, true))));
 
   if (status === "Approved") {
     if (isOwner) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
-        .append(makeButton("Submit").addClass("submit-button").click(() => perform(submitDiff(id))));
+        .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(id))));
     }
   } else if (status === "Merge Pending") {
     if (isOwner) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
-        .append(makeButton("Rebase").click(() => perform(rebaseChange(id))))
-        .append(makeButton("& submit").click(() => perform(rebaseSubmitChange(id))));
+        .append(makeButton("Rebase").addClass("T-I-Js-IF").click(() => perform("rebase", rebaseChange(id))))
+        .append(makeButton("& submit").addClass("T-I-Js-Gs").click(() => perform("rebase_submit", rebaseSubmitChange(id))));
     }
   } else if (isReviewer || isOwner) {
     const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
-    $approveButtons.append(makeButton("Approve").click(() => perform(commentDiff(id, true, false))));
+    $approveButtons.append(makeButton("Approve").addClass("T-I-Js-IF").click(() => perform("approve", commentDiff(id, true, false))));
     if (isOwner) {
-      $approveButtons.append(makeButton("& submit").click(() => perform(approveSubmitDiff(id))));
+      $approveButtons.append(makeButton("& submit").addClass("T-I-Js-Gs").click(() => perform("approve_submit", approveSubmitDiff(id))));
     } else if (isReviewer) {
-      $approveButtons.append(makeButton("& comment").click(() => perform(commentDiff(id, true, true))));
+      $approveButtons.append(makeButton("& comment").addClass("T-I-Js-Gs").addClass("").click(() => perform("approve_comment", commentDiff(id, true, true))));
     }
   }
   return $content;
+}
+
+function findFailedLink(reviewData) {
+  const lastFailedMessageIndex = _.findLastIndex(reviewData.messages, m => isBot(m.author.username) && m.message.indexOf("Verified-1") >= 0);
+  if (lastFailedMessageIndex >= 0) {
+    const failedMessage = reviewData.messages[lastFailedMessageIndex].message;
+    const links = linkify.find(failedMessage);
+    if (links.length > 0) {
+      return links[0].href;
+    }
+  }
+  return undefined;
 }
 
 async function renderChange(id) {
@@ -178,6 +192,8 @@ async function renderChange(id) {
     return;
   }
   const data = resp.data;
+
+  tracker.sendAppView("thread");
 
   renderBox(id, data);
 
@@ -215,6 +231,7 @@ function flashMessage(msg) {
 }
 
 async function sendMessage(msg) {
+  tracker.sendEvent("message", "send", msg.type);
   return new Promise((resolve) => {
     try {
       chrome.runtime.sendMessage(msg, function(resp) {
@@ -224,6 +241,7 @@ async function sendMessage(msg) {
     } catch(err) {
       resolve({success: false, err_msg: "Gerrit extension has been updated to a new version. Please reload your Gmail tab!"});
       flashMessage("Oops, Gerrit extension has been updated to a new version. Please reload your Gmail tab!");
+      tracker.sendAppView("extension_updated");
     }
   });
 }
@@ -314,6 +332,7 @@ async function formatThread(reviewData) {
   }
 
   doFormat();
+  tracker.sendEvent("dom", "annotate", "thread");
 }
 
 function formatCard($card, reviewData) {
@@ -344,6 +363,7 @@ function formatCard($card, reviewData) {
     formatNewPatch($card, $msg, text, reviewData);
   }
   $card.data("gerritFormatted", true);
+  tracker.sendEvent("dom", "annotate", "card");
 }
 
 function getRevisionIdByPatchNumber(reviewData, patchNumber) {
@@ -1247,10 +1267,12 @@ function hidePageAction() {
 }
 
 function showNeedSetup() {
+  tracker.sendAppView("need_setup");
   sendMessage({type: "showSetup"});
 }
 
 function showNeedLogin() {
+  tracker.sendAppView("need_login");
   sendMessage({type: "showLogin"});
 }
 
@@ -1328,6 +1350,10 @@ async function rebaseSubmitChange(id) {
 }
 
 async function initialize() {
+  const service = analytics.getService("gmail_gerrit_extension");
+  tracker = service.getTracker("UA-114677209-1");
+  tracker.set("dimension1", getGmailType());
+
   const settings = await loadSettings();
   gSettings.url = settings.url;
   gSettings.contextLines = settings.contextLines;
@@ -1343,10 +1369,13 @@ async function initialize() {
   if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
     // Email is set and is not the current gmail account; forget it
     console.log("Gerrit extension expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
+    tracker.sendAppView("wrong_gmail");
     return;
   }
 
   console.log("Running Gerrit plugin!");
+
+  tracker.sendAppView("initial");
 
   setTimeout(() => $("body").keypress(handleKeyPress), 3000);
   dom.onDomChanged(checkDiff, checkThreads, clearDiff);
@@ -1448,6 +1477,7 @@ function annotateSubject($subject, change) {
   if (["To Review", "To Respond"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--action");
   }
+  tracker.sendEvent("dom", "annotate", "subject");
 }
 
 function checkDiff() {
@@ -1473,10 +1503,12 @@ async function handleKeyPress(e) {
   if (changeId) {
     if (e.which === 119) {
       viewDiff(changeId);
+      tracker.sendEvent("dom", "keyboard_shortcut", "view_diff", numAnnotated);
     } else if (e.which === 87) {
       const resp = await commentDiff(changeId, true, false);
       performActionCallback(changeId, resp);
       flashMessage("Approved!");
+      tracker.sendEvent("dom", "keyboard_shortcut", "approve_diff", numAnnotated);
     }
   }
 }
@@ -1545,6 +1577,7 @@ class GmailDom {
         clearInterval(newThreadsCheckerId);
         handleDiff();
       } else if (this.isShowingThreadList()) {
+        tracker.sendAppView("threadlist");
         handleThreads();
         newThreadsCheckerId = setInterval(handleThreads, 5000);
       } else {

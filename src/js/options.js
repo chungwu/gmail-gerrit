@@ -12,17 +12,25 @@ function save() {
 
   const botNames = $("#bot-names").val();
 
+  const allowTracking = $("#allow-tracking").prop("checked");
+
   localStorage['host'] = url;
   localStorage['gmail'] = gmail;
   localStorage['contextLines'] = context;
   localStorage['botNames'] = botNames;
   
-  _flashMessage("Saved! You should reload your Gmail tabs to reflect the changes.");
+
+  const service = analytics.getService("gmail_gerrit_extension");
+  service.getConfig().addCallback((config) => {
+    config.setTrackingPermitted(allowTracking);
+    _flashMessage("Saved! You should reload your Gmail tabs to reflect the changes.");
+  });
   return false;
 }
 
 function _flashMessage(msg) {
   $(".message").text(msg).show();
+  window.scrollTo(0, 0);
 }
 
 function _validateEmail(email) {
@@ -42,8 +50,6 @@ function _validateInt(num) {
 }
 
 function _validateUrl(url) {
-  // let url = _.trim(url);
-  // console.log("URL", url);
   if (url.length === 0) {
     _flashMessage("You must specify your Gerrit URL!");
     return false;
@@ -64,6 +70,12 @@ function load() {
   $("#gmail").val(localStorage['gmail']);
   $("#context-lines").val(localStorage['contextLines'] || "3");
   $("#bot-names").val(localStorage['botNames'] || "jenkins");
+  const service = analytics.getService("gmail_gerrit_extension");
+  tracker = service.getTracker("UA-114677209-1");
+  tracker.sendAppView("options");
+  service.getConfig().addCallback((config) => {
+    $("#allow-tracking").prop("checked", config.isTrackingPermitted());
+  });
 }
 
 function init() {
