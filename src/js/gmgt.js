@@ -1652,12 +1652,14 @@ class InboxDom {
     return true;
   }
   getThread() {
-    // We fall back to using .scroll-list-item-highlighted only if .scroll-list-item-open gives us
-    // too many items (which happens if one is opening and one is closing).  I'm not sure when
-    // an item is considered "highlighted" :-/
-    const $opened = $(".scroll-list-item-open");
+    // We get the item that's currently open, excluding the currently-opened bundle, and the item
+    // that is open but is being closed (when you switch from opening one item to another item). 
+    // In case we've selected more than one item this way for some reason,
+    // we will also add a requirement for .scroll-list-item-highlighted, though I'm not sure
+    // when an item is "highlighted" :-/
+    const $opened = $(".scroll-list-item-open").not(".scroll-list-item-cluster").not(".scroll-list-item-measuring-close");
     if ($opened.length > 1) {
-      return $(".scroll-list-item-open.scroll-list-item-highlighted");
+      return $opened.filter(".scroll-list-item-highlighted");
     } else {
       return $opened;
     }
