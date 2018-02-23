@@ -1646,13 +1646,21 @@ class InboxDom {
     return $("div[role=main]:first").length > 0;
   }
   isShowingThread() {
-    return $(".scroll-list-item-open").length > 0;
+    return this.getThread().length > 0;
   }
   isShowingThreadList() {
     return true;
   }
   getThread() {
-    return $(".scroll-list-item-open.scroll-list-item-highlighted");
+    // We fall back to using .scroll-list-item-highlighted only if .scroll-list-item-open gives us
+    // too many items (which happens if one is opening and one is closing).  I'm not sure when
+    // an item is considered "highlighted" :-/
+    const $opened = $(".scroll-list-item-open");
+    if ($opened.length > 1) {
+      return $(".scroll-list-item-open.scroll-list-item-highlighted");
+    } else {
+      return $opened;
+    }
   }
   getCards($thread) {
     return $(".ap.s2", $thread);
