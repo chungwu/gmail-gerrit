@@ -67,6 +67,14 @@
   padding: 0 8px;
 }
 
+.gerrit-sidebox-container--inbox .gerrit-button.gerrit-button--left {
+  padding-right: 3px;
+}
+
+.gerrit-sidebox-container--inbox .gerrit-button.gerrit-button--right {
+  padding-left: 3px;
+}
+
 .gerrit-button--inbox.gerrit-button--primary {
   color: #3367d6;
 }

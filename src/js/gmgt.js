@@ -71,7 +71,7 @@ function renderErrorBox(id, err_msg) {
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
   if (!gSettings.auth) {
     $("<div class='gerrit-sidebox-buttons'/>").appendTo($sideBox)
-      .append(makeButton("Login", false, gSettings.url, true).appendTo($sideBox))
+      .append(makeButton("Login", {href: gSettings.url, primary: true}).appendTo($sideBox))
       .append(makeButton("Try again").appendTo($sideBox).click(() => renderChange(id)));
   }
 }
@@ -139,7 +139,7 @@ function renderBox(id, reviewData) {
   if (status === "Failed Verify") {
     const link = findFailedLink(reviewData);
     if (link) {
-      $basicButtons.append(makeButton("See Error", false, link).addClass("error-button"));
+      $basicButtons.append(makeButton("See Error", {href: link}).addClass("error-button"));
     }
   }
   $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, false, true))));
@@ -152,16 +152,16 @@ function renderBox(id, reviewData) {
   } else if (status === "Merge Pending") {
     if (isOwner) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
-        .append(makeButton("Rebase").addClass("T-I-Js-IF").click(() => perform("rebase", rebaseChange(id))))
-        .append(makeButton("& submit").addClass("T-I-Js-Gs").click(() => perform("rebase_submit", rebaseSubmitChange(id))));
+        .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(id))))
+        .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(id))));
     }
   } else if (isReviewer || isOwner) {
     const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
-    $approveButtons.append(makeButton("Approve").addClass("T-I-Js-IF").click(() => perform("approve", commentDiff(id, true, false))));
+    $approveButtons.append(makeButton("Approve", {side: "left"}).click(() => perform("approve", commentDiff(id, true, false))));
     if (isOwner) {
-      $approveButtons.append(makeButton("& submit").addClass("T-I-Js-Gs").click(() => perform("approve_submit", approveSubmitDiff(id))));
+      $approveButtons.append(makeButton("& submit", {side: "right"}).click(() => perform("approve_submit", approveSubmitDiff(id))));
     } else if (isReviewer) {
-      $approveButtons.append(makeButton("& comment").addClass("T-I-Js-Gs").addClass("").click(() => perform("approve_comment", commentDiff(id, true, true))));
+      $approveButtons.append(makeButton("& comment", {side: "right"}).addClass("").click(() => perform("approve_comment", commentDiff(id, true, true))));
     }
   }
   return $content;
@@ -446,7 +446,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       renderFileBox(reviewData, revId, file, baseId).appendTo($box);
     }
   
-    const $comment = makeButton("Submit Comments", false, undefined, true).click(function() { collectAndSubmitComments(false); });
+    const $comment = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
     const $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
     const replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
     replyWidget.getWidget().addClass("primary").appendTo($box);
@@ -727,8 +727,9 @@ function segmentEdits(lines, edits) {
   return buffer;
 }
 
-function makeButton(text, small, href, primary) {
-  const $button = dom.makeButton(primary).text(text);
+function makeButton(text, opts) {
+  const {small, href, primary, side} = opts || {};
+  const $button = dom.makeButton(primary, side).text(text);
   if (href) {
     $button.prop("href", href);
   }
@@ -895,7 +896,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
   $msg.empty();
   const $commentsBox = $("<div/>");
   $msg.append($commentsBox);
-  const $submit = makeButton("Submit Comments", false, undefined, true).click(function() { collectAndSubmitComments(false); });
+  const $submit = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
   const $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
   messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
@@ -943,7 +944,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
 
       makeCommentThread(comment, id2comment).appendTo($filebox);
 
-      const lineReplyWidget = new RespondWidget(makeButton("Reply", true), []);
+      const lineReplyWidget = new RespondWidget(makeButton("Reply", {small: true}), []);
       lineReplyWidget.getWidget().appendTo($filebox);
       lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
       lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id, parent_patch_set: comment.patch_set});
@@ -1560,12 +1561,17 @@ class GmailDom {
   getMessage($card) {
     return $($(".ii div", $card)[0]);
   }
-  makeButton(primary) {
+  makeButton(primary, side) {
     const $button = $("<a class='gerrit-button gerrit-button--gmail T-I J-J5-Ji lR ar7 T-I-JO'/>");
     if (primary) {
       $button.addClass("gerrit-button--primary T-I-atl");
     } else {
       $button.addClass("T-I-ax7");
+    }
+    if (side == "left") {
+      $button.addClass("T-I-Js-IF");
+    } else if (side == "right") {
+      $button.addClass("T-I-Js-Gs");
     }
     return $button;
   }
@@ -1646,11 +1652,17 @@ class InboxDom {
   getMessage($card) {
     return $(".b5", $card);
   }
-  makeButton(primary) {
+  makeButton(primary, side) {
+    let $button;
     if (primary) {
-      return $("<a class='gerrit-button gerrit-button--inbox sY dy Go qj gerrit-button--primary'/>");
+      $button = $("<a class='gerrit-button gerrit-button--inbox sY dy Go qj gerrit-button--primary'/>");
     } else {
-      return $("<a class='gerrit-button gerrit-button--inbox Jc H dH'/>");
+      $button = $("<a class='gerrit-button gerrit-button--inbox Jc H dH'/>");
+    }
+    if (side == "left") {
+      $button.addClass("gerrit-button--left");
+    } else if (side == "right") {
+      $button.addClass("gerrit-button--right");
     }
     return $button;
   }
