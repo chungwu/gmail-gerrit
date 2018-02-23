@@ -1588,15 +1588,21 @@ class GmailDom {
 
     const check = () => {
       if (this.isShowingThread()) {
-        clearInterval(newThreadsCheckerId);
         handleDiff();
-      } else if (this.isShowingThreadList()) {
+      } else {
+        handleClearDiff();
+      }
+      
+      if (this.isShowingThreadList()) {
         tracker.sendAppView("threadlist");
         handleThreads();
-        newThreadsCheckerId = setInterval(handleThreads, 5000);
+        if (!newThreadsCheckerId) {
+          newThreadsCheckerId = setInterval(handleThreads, 5000);
+        }
       } else {
-        clearInterval(newThreadsCheckerId);
-        handleClearDiff();
+        if (newThreadsCheckerId) {
+          clearInterval(newThreadsCheckerId);
+        }
       }
     }
     $(window).bind("hashchange", () => setTimeout(check, 100));
