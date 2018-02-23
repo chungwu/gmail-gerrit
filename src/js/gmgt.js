@@ -261,20 +261,27 @@ async function loadDiff(id, revId, file, baseId) {
 
 async function loadAndCacheDiff(reviewData, revId, file, baseId) {
   const rev = reviewData.revisions[revId];
-  const key = file + baseId;
   if (!rev.diffs) {
     rev.diffs = {};
+  }
+  if (!rev.diffs[file]) {
+    rev.diffs[file] = {};
   }
   const makePromise = function() {
     return loadDiff(reviewData._number, revId, file, baseId);
   };
-  return loadAndCache(rev.diffs, key, makePromise);
+  return loadAndCache(rev.diffs[file], baseId, makePromise);
 }
 
 async function loadAndCache(obj, prop, promiser) {
   const promiseProp = "__promise_" + prop;
   if (!obj[promiseProp]) {
-    obj[promiseProp] = promiser();
+    obj[promiseProp] = promiser().then((res) => {
+      if (res.success) {
+        obj[prop] = res.data;
+      }
+      return res;
+    });
   }
   return obj[promiseProp];
 }
@@ -971,69 +978,133 @@ function _diffToContentLines(diff) {
   return content;
 }
 
+async function loadAllFileContentLinesDict(reviewData, fileRevIds) {
+  // fileRevIds is a list of two-element arrays of file and revId, like [[file1, rev1], [file2, rev1]], etc.
+  // Returns a dict keyed by string `${file}___${rev}`, and the value is array of lines of that file
+  // at that rev.
+  const promises = fileRevIds.map(([file, revId]) => loadFileContentLines(reviewData, file, revId));
+  const resps = await Promise.all(promises);
+  const dict = {};
+  for (const [[file, revId], resp] of _.zip(fileRevIds, resps)) {
+    if (resp.success) {
+      dict[`${file}___${revId}`] = resp.data;
+    }
+  }
+  return dict;
+}
+
+async function loadFileContentLines(reviewData, file, revId) {
+  // Try to serve file content from the diff cache if possible.
+  if (reviewData.revisions[revId] && reviewData.revisions[revId].diffs && reviewData.revisions[revId].diffs[file]) {
+    const diffs = reviewData.revisions[revId].diffs[file];
+    // We don't care which base the diff was against; we're just going to turn the diff
+    // content into file content.
+    for (const key in diffs) {
+      // Ignore the promise keys, created by loadAndCache().
+      if (!key.startsWith("__promise_")) {
+        return {success: true, data: _diffToContentLines(diffs[key])};
+      }
+    }
+  }
+  // Nothing found in the cache, so load it (against undefined baseId, because we don't care
+  // which base we use)
+  const resp = await loadAndCacheDiff(reviewData, revId, file);
+  if (!resp.success) {
+    return resp;
+  } else {
+    return {success: true, data: _diffToContentLines(resp.data)};
+  }
+}
+
+/**
+ * Loads and returns the comments and messages that most closely match to the email 
+ * held by $card.
+ */
 async function loadMessageComments($card, text, reviewData, revId) {
   // It is hard to use the REST API and figure out which comments belong to
   // this email message, since the comments we get from the REST API are just
   // grouped together under a file, and we can't tell which belong to which
-  // email message.  Here we have two separate heuristics -- one by looking
+  // email message.  Here we have two possible heuristics -- one by looking
   // at the actual email content, and matching it with the ones we get
-  // from the REST API to attach IDs to those comments.  Another is to try
-  // to match this email message to one of the reviewData.messages, which is
-  // also just a best-guess effort, and then to keep all comments created
-  // with the same timestamp as the reviewData.message.  Both suck; extracting
-  // from email body depends on Gerrit's email formatting, and also hopes
-  // that no two people have made the same comment on the same line.  Using
-  // the REST API entirely depends on the message having the same timestamp
-  // as the comment, and also depends on the rather unreliable and fuzzy
-  // matching from email message to reviewData.message.  By default, we extract
-  // load from REST API, since the message body formatting changes from release
-  // to release :-/
+  // from the REST API to attach IDs to those comments.  This doesn't work very well,
+  // because since the Gerrit admin has control over the email templates,
+  // we don't really know what the email content will look like. It's even more
+  // challenging if we're dealing with HTML emails from 2.14+.
+  // Another is to try to match this email message to one of the reviewData.messages, 
+  // which is also just a best-guess effort, and then to keep all comments created
+  // with the same timestamp as the reviewData.message.  This is also not guaranteed
+  // to work; we are basically using the timestamp as the join key, and we can only 
+  // hope that no two people have made a comment at the same time.  This is at
+  // least more likely to work, though.
   const baseId = guessNewPatchBase(reviewData.revisions[revId]._number, reviewData);
-  async function loadFileComments(file, allComments) {
-    const resp = await loadAndCacheDiff(reviewData, revId, file, baseId);
-    if (!resp.success) {
-      return resp;
-    } else {
-      const fileComments = allComments[file].filter(c => c.author.email === gMsg.author.email && c.updated === gMsg.date);
-      const content = _diffToContentLines(resp.data);
-      const lineComments = [];
-      for (const fc of fileComments) {
-        const isSamePatchSet = fc.patch_set === reviewData.revisions[revId]._number;
-        const lineContent = (!isSamePatchSet || fc.side === "PARENT") ? "(unavailable...)" : content[fc.line-1];
-        lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
-      }
-      return {success: true, data: {file: file, lineComments: lineComments}};
-    }
-  }
 
   const resp = await loadAndCacheComments(reviewData);
   if (!resp.success) {
     return resp;
   }
-
   const allComments = resp.data;
   console.log("Loaded comments", allComments);
-  const gMsg = guessGerritMessage($card, text, revId, reviewData);
+  const gMsg = guessGerritMessage($card, text, revId, reviewData, allComments);
   console.log("MATCHED", gMsg);
   if (!gMsg) {
-    console.log("Failed to match " + revId, {text: text, reviewData: reviewData});
+    console.log("Failed to match " + revId, {text, reviewData, allComments});
     return {success: false};
-  } else {
-    const promises = [];
-    for (const file in allComments) {
-      promises.push(loadFileComments(file, allComments));
-    }
-    const resps = await Promise.all(promises);
-    const fileComments = [];
-    for (const resp of resps) {
-      if (!resp.success) {
-        return resp;
-      } else {
-        fileComments.push(resp.data);
-      }
-    }
-    return {success: true, data: {message: gMsg.message.split("\n"), fileComments: fileComments, allComments: allComments}};
   }
+
+  // Filter down from allComments to only those comments that are linked to the
+  // guessed Gerrit message.
+  const messageComments = (
+    _.chain(allComments)
+    .pairs()
+    // Filter to comments made by the same gMsg author, and with the same timestamp.
+    .map(([file, comments]) => 
+      [file, comments.filter(c => c.author.email === gMsg.author.email && c.updated === gMsg.date)])
+    // Remove files whose comments all got filtered out
+    .filter(([file, comments]) => comments.length > 0)
+    // Rebuild into a dict keyed by files
+    .object()
+    .value());
+
+  // Now we want to generate the list of (file, revision) pairs for all the file content
+  // referenced by the messageComments.
+  const requiredFileContents = (
+    _.chain(messageComments)
+    .pairs()
+    // Map each (file, comments) to a list of (file, referenced revision ID)
+    .map(([file, comments]) => comments.map(fc => [file, getRevisionIdByPatchNumber(reviewData, fc.patch_set)]))
+    // Flatten so we just have one big list of (file, revision ID)
+    .flatten(true)
+    // Many comments refer to the same (file, revision ID), so we dedupe by converting
+    // the (file, revisionID) tuple to string.
+    .map(([file, revId]) => `${file}___${revId}`)
+    .uniq()
+    // Convert back to (file, revision ID)
+    .map(fileRevId => fileRevId.split("___"))
+    .value()
+  );
+
+  const fileRevIdToContentLines = await loadAllFileContentLinesDict(reviewData, requiredFileContents);
+
+  function buildFileComments(file) {
+    const lineComments = [];
+    for (const fc of messageComments[file]) {
+      const fcRevId = getRevisionIdByPatchNumber(reviewData, fc.patch_set);
+      const isSamePatchSet = fcRevId === revId;
+      const fileLines = fileRevIdToContentLines[`${file}___${fcRevId}`];
+      const lineContent = (fc.side === "PARENT" || !fileLines) ? "(unavailable...)" : fileLines[fc.line-1];
+      lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
+    }
+    return {file, lineComments};
+  }
+
+  return {
+    success: true,
+    data: {
+      message: gMsg.message.split("\n"), 
+      fileComments: _.keys(messageComments).map(file => buildFileComments(file)), 
+      allComments: allComments
+    }
+  };
 }
 
 function crunch(string) {
@@ -1050,12 +1121,10 @@ function parseGerritDateString(str) {
   return new Date(Date.parse(str));
 }
 
-function guessGerritMessage($card, text, revId, reviewData) {
+function guessGerritMessage($card, text, revId, reviewData, allComments) {
   // TODO: this tries to match a Gmail $card with a reviewData.messages.
   // Very fragile!  Surely there's a better way???
   const pid = reviewData.revisions[revId]._number;
-  const cardFrom = $("span.gD", $card).text();
-  const allComments = reviewData.comments;
   const cardDate = extractGerritCommentDate(text).toString();
   console.log("Guessing for", {text: text, reviewData: reviewData});
 
@@ -1072,6 +1141,7 @@ function guessGerritMessage($card, text, revId, reviewData) {
     /* Matching by author is hard to get right.  The FROM name displayed in
        Gerrit email may be totally different from the Gerrit user's name, email
        address, or username.  Skipping this guard :-/
+    const cardFrom = $("span.gD", $card).text();
     if (!(cardFrom.indexOf(msg.author.name) >= 0 || 
           cardFrom.indexOf(msg.author.email) >= 0 ||
           cardFrom.indexOf((msg.author.email || "").split("@")[0]) >= 0 ||
