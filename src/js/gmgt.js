@@ -332,7 +332,7 @@ async function formatThread(reviewData) {
   }
 
   doFormat();
-  tracker.sendEvent("dom", "annotate", "thread");
+  tracker.sendEvent("render", "annotate", "thread");
 }
 
 function formatCard($card, reviewData) {
@@ -363,7 +363,7 @@ function formatCard($card, reviewData) {
     formatNewPatch($card, $msg, text, reviewData);
   }
   $card.data("gerritFormatted", true);
-  tracker.sendEvent("dom", "annotate", "card");
+  tracker.sendEvent("render", "annotate", "card");
 }
 
 function getRevisionIdByPatchNumber(reviewData, patchNumber) {
@@ -448,7 +448,9 @@ function renderRevisionDiff(reviewData, revId, baseId) {
   
     const $comment = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
     const $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-    const replyWidget = new RespondWidget(makeButton("Comment"), [$comment, $commentApprove]);
+    const replyWidget = new RespondWidget(
+      makeButton("Comment").click(() => tracker.sendEvent("diff", "add_comment", "patchset")), 
+      [$comment, $commentApprove]);
     replyWidget.getWidget().addClass("primary").appendTo($box);
 
     const openReplyWidget = function() {
@@ -481,6 +483,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       });
   
       const resp = await submitComments(reviewData._number, revId, review);
+      tracker.sendEvent("diff", "submit_comments");
       if (resp.success) {
         $(".gerrit-reply-box", $box).detach();
         replyWidget.close(true);
@@ -596,6 +599,7 @@ function appendFileDiff($box, file, data) {
           $textBox.focus();
           $line.data("gerrit-textBox", $textBox);
         }
+        tracker.sendEvent("diff", "add_comment", "line");
       };
       $line.addClass("gerrit-commentable").dblclick(onAddComment);
       $("<img class='gerrit-add-comment'/>").prop("src", chrome.extension.getURL("icons/add-comment.png")).click(onAddComment).appendTo($line);
@@ -884,6 +888,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
       }
     }
     const resp = await submitComments(reviewData._number, revId, review);
+    tracker.sendEvent("comment", "submit_comments");
     if (resp.success) {
       for (const lw of lineReplyWidgets) {
         lw.widget.close(true);
@@ -898,7 +903,9 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
   $msg.append($commentsBox);
   const $submit = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
   const $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
-  messageReplyWidget = new RespondWidget(makeButton("Reply"), [$submit, $submitApprove]);
+  messageReplyWidget = new RespondWidget(
+    makeButton("Reply").click(() => tracker.sendEvent("comment", "add_comment", "patchset")), 
+    [$submit, $submitApprove]);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
 
   const id2comment = {};
@@ -944,7 +951,8 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
 
       makeCommentThread(comment, id2comment).appendTo($filebox);
 
-      const lineReplyWidget = new RespondWidget(makeButton("Reply", {small: true}), []);
+      const lineReplyWidget = new RespondWidget(
+        makeButton("Reply", {small: true}).click(() => tracker.sendEvent("comment", "add_comment", "line")), []);
       lineReplyWidget.getWidget().appendTo($filebox);
       lineReplyWidget.$teaser.click(function() { messageReplyWidget.open(false); });
       lineReplyWidgets.push({widget: lineReplyWidget, file: fileComment.file, line: comment.line, parent: comment.id, parent_patch_set: comment.patch_set});
@@ -1478,7 +1486,7 @@ function annotateSubject($subject, change) {
   if (["To Review", "To Respond"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--action");
   }
-  tracker.sendEvent("dom", "annotate", "subject");
+  tracker.sendEvent("render", "annotate", "subject");
 }
 
 function checkDiff() {
@@ -1504,12 +1512,12 @@ async function handleKeyPress(e) {
   if (changeId) {
     if (e.which === 119) {
       viewDiff(changeId);
-      tracker.sendEvent("dom", "keyboard_shortcut", "view_diff", numAnnotated);
+      tracker.sendEvent("keyboard_shortcut", "press", "view_diff");
     } else if (e.which === 87) {
       const resp = await commentDiff(changeId, true, false);
       performActionCallback(changeId, resp);
       flashMessage("Approved!");
-      tracker.sendEvent("dom", "keyboard_shortcut", "approve_diff", numAnnotated);
+      tracker.sendEvent("keyboard_shortcut", "press", "approve_diff");
     }
   }
 }
