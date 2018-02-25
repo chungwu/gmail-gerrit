@@ -6,6 +6,7 @@ const re_rgid = new RegExp(".*/(\\d+)$");
 
 const $sideBox = $("<div class='nH gerrit-box gerrit-sidebox'/>");
 
+
 function labeledValue(label, value) {
   if (value === 0) { return undefined; }
   else if (value > 0) { return label + "+" + value; }
@@ -82,12 +83,35 @@ function makeInfoBoxHeader(id, status) {
   const $link = $("<a target='_blank'/>").prop("href", `gSettings.url/${id}`).text(id).appendTo($header);
   $("<span>: </span>").appendTo($header);
   const $status = $("<span class='status'/>").text(status).appendTo($header);
-  if (status == "Error" || status == "Failed Verify" || status == "Rejected") {
+  if (status == "Error" || status == "Failed Verify" || status == "Rejected" || status == "Cannot Merge") {
     $status.addClass("red");
   } else if (status == "Approved" || status == "Merged") {
     $status.addClass("green");
   }
   return $header;
+}
+
+function undefinedOrTrue(val) {
+  return val === undefined || val === true;
+}
+
+function maxPermittedCodeReviewScore(reviewData) {
+  if (!reviewData.permitted_labels) {
+    return undefined;
+  }
+  const range = reviewData.permitted_labels["Code-Review"];
+  if (!range || !range.length > 0) {
+    return undefined;
+  }
+  return parseInt(range[range.length-1]);
+}
+
+function maxCodeReviewScore(reviewData) {
+  if (!reviewData.labels || !reviewData.labels["Code-Review"] || !reviewData.labels["Code-Review"].values) {
+    return undefined;
+  }
+  const values = _.keys(reviewData.labels["Code-Review"].values).map(parseInt);
+  return _.max(values);
 }
 
 function renderBox(id, reviewData) {
@@ -97,6 +121,7 @@ function renderBox(id, reviewData) {
   const isOwner = isChangeOwner(reviewData);
   const isReviewer = isChangeReviewer(reviewData);
   const reviewers = extractReviewers(reviewData);
+  const maxCRScore = maxCodeReviewScore(reviewData);
 
   makeInfoBoxHeader(id, status).appendTo($sideBox);
 
@@ -106,7 +131,7 @@ function renderBox(id, reviewData) {
   _.forEach(reviewers, (reviewer, index) => {
     const allLabels = reviewer.labels.join(",");
     const reviewerClass = (
-      allLabels.indexOf("Code-Review+2") >= 0 ?
+      allLabels.indexOf(`Code-Review+${maxCRScore}`) >= 0 ?
         "reviewer-approved" :
       allLabels.indexOf("Verified+1") >= 0 ?
         "reviewer-verified" :
@@ -142,26 +167,32 @@ function renderBox(id, reviewData) {
       $basicButtons.append(makeButton("See Error", {href: link}).addClass("error-button"));
     }
   }
-  $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, false, true))));
+  $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, undefined, true))));
 
   if (status === "Approved") {
-    if (isOwner) {
+    if (isOwner && undefinedOrTrue(reviewData.mergeable) && undefinedOrTrue(reviewData.submittable)) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
         .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(id))));
     }
-  } else if (status === "Merge Pending") {
+  } else if (status === "Merge Pending" || status === "Cannot Merge") {
     if (isOwner) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
         .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(id))))
         .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(id))));
     }
   } else if (isReviewer || isOwner) {
+    const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
     const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
-    $approveButtons.append(makeButton("Approve", {side: "left"}).click(() => perform("approve", commentDiff(id, true, false))));
-    if (isOwner) {
-      $approveButtons.append(makeButton("& submit", {side: "right"}).click(() => perform("approve_submit", approveSubmitDiff(id))));
-    } else if (isReviewer) {
-      $approveButtons.append(makeButton("& comment", {side: "right"}).addClass("").click(() => perform("approve_comment", commentDiff(id, true, true))));
+    if (maxPermittedScore !== undefined && maxPermittedScore > 0) {
+      $approveButtons.append(
+        makeButton(
+          "Approve" + (maxPermittedScore != 2 ? ` (+${maxPermittedScore})` : ""), 
+          {side: "left"}).click(() => perform("approve", commentDiff(id, maxPermittedScore, false))));
+      if (isOwner) {
+        $approveButtons.append(makeButton("& submit", {side: "right"}).click(() => perform("approve_submit", approveSubmitDiff(id, maxPermittedScore))));
+      } else if (isReviewer) {
+        $approveButtons.append(makeButton("& comment", {side: "right"}).addClass("").click(() => perform("approve_comment", commentDiff(id, maxPermittedScore, true))));
+      }
     }
   }
   return $content;
@@ -186,7 +217,6 @@ async function renderChange(id) {
   $sideBox.empty().prependTo($sidebarBoxes);
 
   const resp = await loadChange(id);
-  console.log("Loaded change", resp);
   if (!resp.success) {
     renderErrorBox(id, resp.err_msg);
     return;
@@ -453,11 +483,19 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       renderFileBox(reviewData, revId, file, baseId).appendTo($box);
     }
   
-    const $comment = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
-    const $commentApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+    const respondButtons = [
+      makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); })
+    ];
+    const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
+    if (maxPermittedScore > 0) {
+      respondButtons.push(
+        makeButton(
+          "Submit Comments & Approve" + (maxPermittedScore != 2 ? ` (+${maxPermittedScore})` : "")
+        ).click(function() { collectAndSubmitComments(true); }));
+    }
     const replyWidget = new RespondWidget(
       makeButton("Comment").click(() => tracker.sendEvent("diff", "add_comment", "patchset")), 
-      [$comment, $commentApprove]);
+      respondButtons);
     replyWidget.getWidget().addClass("primary").appendTo($box);
 
     const openReplyWidget = function() {
@@ -472,7 +510,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
         review.message = replyWidget.getText();
       }
       if (approve) {
-        review.labels = {'Code-Review': 2};
+        review.labels = {'Code-Review': maxPermittedScore};
       }
       $(".gerrit-reply-box.inlined textarea.gerrit-reply", $box).each(function() {
         const comment = $.trim($(this).val());
@@ -875,7 +913,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
       review.message = messageReplyWidget.getText();
     }
     if (approve) {
-      review.labels = {'Code-Review': 2};
+      review.labels = {'Code-Review': maxPermittedScore};
     }
     for (const lw of lineReplyWidgets) {
       if (lw.widget.getText().length > 0) {
@@ -908,11 +946,19 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
   $msg.empty();
   const $commentsBox = $("<div/>");
   $msg.append($commentsBox);
-  const $submit = makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); });
-  const $submitApprove = makeButton("Submit Comments & Approve").click(function() { collectAndSubmitComments(true); });
+  const respondButtons = [
+    makeButton("Submit Comments", {primary: true}).click(function() { collectAndSubmitComments(false); })
+  ];
+  const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
+  if (maxPermittedScore > 0) {
+    respondButtons.push(
+      makeButton(
+        "Submit Comments & Approve" + (maxPermittedScore != 2 ? ` (+${maxPermittedScore})` : "")
+      ).click(function() { collectAndSubmitComments(true); }))
+  }
   messageReplyWidget = new RespondWidget(
     makeButton("Reply").click(() => tracker.sendEvent("comment", "add_comment", "patchset")), 
-    [$submit, $submitApprove]);
+    respondButtons);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
 
   const id2comment = {};
@@ -930,7 +976,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
     if (i === 0) {
       $line.addClass("gerrit-header");
     }
-    if (ptext.indexOf("Code-Review+2") >= 0) {
+    if (ptext.indexOf(`Code-Review+${maxCodeReviewScore(reviewData)}`) >= 0) {
       $header.addClass("gerrit-highlight-box");
       $line.addClass("green");
     } else if (ptext.indexOf("Verified+1") >= 0) {
@@ -1043,7 +1089,6 @@ async function loadMessageComments($card, text, reviewData, revId) {
     return resp;
   }
   const allComments = resp.data;
-  console.log("Loaded comments", allComments);
   const gMsg = guessGerritMessage($card, text, revId, reviewData, allComments);
   console.log("MATCHED", gMsg);
   if (!gMsg) {
@@ -1151,7 +1196,7 @@ function guessGerritMessage($card, text, revId, reviewData, allComments) {
     }
     */
     if (cardDate !== new Date(Date.parse(msg.date + "+0000")).toString()) {
-      console.log("Failed to match by date", {cardDate: cardDate, msg: msg});      
+      // console.log("Failed to match by date", {cardDate: cardDate, msg: msg});      
       continue;
     }
     /* This check doesn't work for HTML-formatted emails
@@ -1160,10 +1205,9 @@ function guessGerritMessage($card, text, revId, reviewData, allComments) {
     } 
     */   
     if (allComments && !matchFileComments(msg)) {
-      console.log("Failed to match file comments!", {allComments: allComments, msg: msg});
+      // console.log("Failed to match file comments!", {allComments: allComments, msg: msg});
       continue;
     }
-    console.log("Matched against", allComments);
 
     return msg;
   }
@@ -1298,9 +1342,12 @@ function reviewStatus(reviewData) {
     return "Unverified";
   }
 
+  const maxCRScore = maxCodeReviewScore(reviewData);
   const approved = getLabelStatus(reviewData, 'Code-Review');
-  if (approved === 2) {
+  if (approved === maxCRScore && undefinedOrTrue(reviewData.mergeable)) {
     return 'Approved';
+  } else if (approved === maxCRScore) {
+    return 'Cannot Merge';
   } else if (approved < 0) {
     return "Rejected";
   }
@@ -1384,7 +1431,7 @@ function viewDiff(id) {
   sendMessage({type: "viewDiff", id: id});  
 }
 
-async function commentDiff(id, approve, comment) {
+async function commentDiff(id, score, comment) {
   let commentText = null;
   if (comment) {
     commentText = prompt("Say your piece.");
@@ -1392,11 +1439,11 @@ async function commentDiff(id, approve, comment) {
       return;
     }
   }
-  return await authenticatedSend({type: "commentDiff", id: id, approve: approve, comment: commentText});
+  return await authenticatedSend({type: "commentDiff", id, score, comment: commentText});
 }
 
-async function approveSubmitDiff(id) {
-  const resp = await commentDiff(id, true, false);
+async function approveSubmitDiff(id, score) {
+  const resp = await commentDiff(id, score, false);
   if (!resp.success) {
     return resp;
   } else {
@@ -1498,7 +1545,6 @@ async function checkThreads() {
   const needData = _.any($subjects, function(s) { return !$(s).data("gerrit-thread-seen"); });
   if (needData) {
     const resp = await loadChanges();
-    console.log("Loaded changes", resp);
     if (!resp.success) {
       return;
     }
@@ -1550,7 +1596,7 @@ function annotateSubject($subject, change) {
       $button.addClass("gerrit-threadlist-button--muted");
     }      
   } 
-  if (["Failed Verify", "Rejected"].indexOf(status) >= 0) {
+  if (["Failed Verify", "Rejected", "Cannot Merge"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--danger");
     if (!isOwner) {
       $button.addClass("gerrit-threadlist-button--muted");
@@ -1565,7 +1611,7 @@ function annotateSubject($subject, change) {
 function checkDiff() {
   const id = extractDiffId();
   if (id !== changeId) {
-    console.log("Found change", id);
+    console.log("Gerrit: Found change", id);
     clearDiff();
     if (id) {
       renderChange(id);
@@ -1587,10 +1633,17 @@ async function handleKeyPress(e) {
       viewDiff(changeId);
       tracker.sendEvent("keyboard_shortcut", "press", "view_diff");
     } else if (e.which === 87) {
-      const resp = await commentDiff(changeId, true, false);
-      performActionCallback(changeId, resp);
-      flashMessage("Approved!");
-      tracker.sendEvent("keyboard_shortcut", "press", "approve_diff");
+      const resp = await loadChange(changeId);
+      if (resp.success) {
+        const reviewData = resp.data;
+        const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
+        const resp = await commentDiff(changeId, maxPermittedScore, false);
+        performActionCallback(changeId, resp);
+        if (resp.success) {
+          flashMessage("Approved!");
+          tracker.sendEvent("keyboard_shortcut", "press", "approve_diff");
+        }
+      }
     }
   }
 }

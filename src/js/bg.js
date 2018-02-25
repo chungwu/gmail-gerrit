@@ -15,7 +15,7 @@ function contentHandler(request, sender, callback) {
   } else if (request.type == "viewDiff") {
     return showDiffs(request.id);
   } else if (request.type == "commentDiff") {
-    return commentDiff(request.id, request.approve, request.comment, callback);
+    return commentDiff(request.id, request.score, request.comment, callback);
   } else if (request.type == "submitDiff") {
     return submitDiff(request.id, callback);
   } else if (request.type == "rebaseChange") {
@@ -53,12 +53,12 @@ function hidePageAction(tabId) {
   chrome.pageAction.hide(tabId);
 }
 
-function commentDiff(id, approve, comment, callback) {
+function commentDiff(id, score, comment, callback) {
   // callback receives true for success, false for failure
   var url = '/changes/' + id + '/revisions/current/review';
   var request = {};
-  if (approve) {
-    request.labels = {"Code-Review": 2}
+  if (score !== undefined) {
+    request.labels = {"Code-Review": score}
   }
   if (comment) {
     request.message = comment;
@@ -139,7 +139,15 @@ function loadChanges(callback) {
 }
 
 function loadChange(id, callback) {
-  var options = ['LABELS', 'CURRENT_REVISION', 'ALL_REVISIONS', 'MESSAGES', 'CURRENT_ACTIONS', 'REVIEWED', 'ALL_COMMITS', 'DETAILED_LABELS', 'ALL_FILES'];
+  var options = [
+    'ALL_COMMITS', 
+    'ALL_FILES',
+    'ALL_REVISIONS', 
+    'DETAILED_LABELS', 
+    'MESSAGES', 
+    'REVIEWED', 
+    'SUBMITTABLE',
+  ];
   ajax("/changes/" + id + "/detail", callback, 'GET', {o: options}, {traditional: true});
   return true;
 }
