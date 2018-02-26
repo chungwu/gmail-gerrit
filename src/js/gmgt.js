@@ -40,7 +40,7 @@ function extractReviewers(data) {
   for (const label of allLabels) {
     addReviewersForLabel(label);
   }
-  for (const rev of data.removable_reviewers) {
+  for (const rev of data.reviewers.REVIEWER) {
     const rk = reviewerKey(rev);
     if (!rk in reviewers) {
       reviewers[rk] = mkrev(rev);
@@ -1313,11 +1313,11 @@ function isChangeOwner(change) {
 }
 
 function isChangeReviewer(change) {
-  if (!change.removable_reviewers) {
+  if (!change.reviewers || !change.reviewers.REVIEWER) {
     return false;
   }
-  for (let i=0; i<change.removable_reviewers.length; i++) {
-    if (gSettings.email === change.removable_reviewers[i].email) {
+  for (const reviewer of change.reviewers.REVIEWER) {
+    if (gSettings.email === reviewer.email) {
       return true;
     }
   }
