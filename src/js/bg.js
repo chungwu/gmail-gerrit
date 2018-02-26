@@ -220,16 +220,17 @@ function ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType) {
 
   // NORMAL error
   function onError(xhr, textStatus, errorThrown) {
-    if (xhr.status == 403) {
+    console.log("ajax error", xhr);
+    if (xhr.status === 403 && xhr.responseText.trim() === "Authentication required") {
       console.log("403!  Try getting auth again");
       initializeAuth().done(function() {
         console.log("Re-issuing ajax call using new token...");
         ajax(uri, callback, opt_type, opt_data, opt_opts, opt_dataType);
       }).fail(function() {
-        callback({success: false, status: xhr.status, err_msg: "Cannot authenticate"});
+        callback({success: false, status: xhr.status, err_msg: xhr.responseText.trim()});
       });
     } else {
-      err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText;
+      err_msg = textStatus == "timeout" ? "Operation timed out" : xhr.responseText.trim();
       callback({success: false, status: xhr.status, err_msg: err_msg});
     }
   }
