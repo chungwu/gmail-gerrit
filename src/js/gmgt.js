@@ -180,7 +180,7 @@ function renderBox(id, reviewData) {
         .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(id))))
         .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(id))));
     }
-  } else if (isReviewer || isOwner) {
+  } else if ((isReviewer || isOwner) && ["Merged", "Abandoned", "Merge Pending"].indexOf(status) < 0) {
     const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
     const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
     if (maxPermittedScore !== undefined && maxPermittedScore > 0) {
@@ -1294,7 +1294,7 @@ function getLabelStatus(reviewData, label) {
   if (!reviewObj.all || reviewObj.all.length === 0) {
     return 0;
   }
-  const reviews = reviewObj.all;
+  const reviews = (reviewObj.all || 0).filter(rev => rev.value !== undefined);
   let maxPoints = 0;
   let minPoints = 0;
   for (let i=0; i < reviews.length; i++) {
@@ -1335,11 +1335,13 @@ function reviewStatus(reviewData) {
     return 'Merge Pending';
   } 
 
-  const verified = getLabelStatus(reviewData, 'Verified');
-  if (verified < 0) {
-    return "Failed Verify";
-  } else if (verified === 0 && reviewData.labels.Verified && !reviewData.labels.Verified.optional) {
-    return "Unverified";
+  if (reviewData.labels["Verified"]) {
+    const verified = getLabelStatus(reviewData, 'Verified');
+    if (verified < 0) {
+      return "Failed Verify";
+    } else if (verified === 0 && reviewData.labels.Verified && !reviewData.labels.Verified.optional) {
+      return "Unverified";
+    }
   }
 
   const maxCRScore = maxCodeReviewScore(reviewData);
