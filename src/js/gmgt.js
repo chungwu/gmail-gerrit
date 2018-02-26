@@ -170,7 +170,7 @@ function renderBox(id, reviewData) {
   $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, undefined, true))));
 
   if (status === "Approved") {
-    if (isOwner && undefinedOrTrue(reviewData.mergeable) && undefinedOrTrue(reviewData.submittable)) {
+    if (isOwner && canSubmit(reviewData)) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
         .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(id))));
     }
@@ -1388,6 +1388,14 @@ function reviewStatus(reviewData) {
 function clearDiff() {
   changeId = null;
   $sideBox.detach();
+}
+
+function canSubmit(reviewData) {
+  return (
+    undefinedOrTrue(reviewData.mergeable) &&
+    undefinedOrTrue(reviewData.submittable) &&
+    reviewData.revisions[reviewData.current_revision].actions.submit !== undefined
+  );
 }
 
 function hidePageAction() {

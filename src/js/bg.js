@@ -147,6 +147,8 @@ function loadChange(id, callback) {
     'MESSAGES', 
     'REVIEWED', 
     'SUBMITTABLE',
+    'CURRENT_ACTIONS',
+    'CHANGE_ACTIONS',
   ];
   ajax("/changes/" + id + "/detail", callback, 'GET', {o: options}, {traditional: true});
   return true;
