@@ -366,6 +366,7 @@ async function formatThread(reviewData) {
     dom.getCards($thread).each(function() {
       formatCard($(this), reviewData);
     });
+    dom.onThreadFormatted($thread);
   }
 
   doFormat();
@@ -1784,6 +1785,9 @@ class GmailDom {
 
     return $button;
   }
+  onThreadFormatted($thread) {
+    // do nothing
+  }
 }
 
 class InboxDom {
@@ -1841,6 +1845,12 @@ class InboxDom {
     const observer = new MutationObserver(_.debounce(check, 500));
     observer.observe($("#Nr")[0], {childList: true, subtree: true});
     check();
+  }
+  onThreadFormatted($thread) {
+    // When Inbox is being too clever and quotes repeated Gerrit footers, we don't get to 
+    // parse out important information.  Here, we show the quoted sections by clicking
+    // on the show button.
+    $(".mg", $thread).click();
   }
   flashMessage(message) {
     const $banner = $($("#Hg .sf")[0]);
