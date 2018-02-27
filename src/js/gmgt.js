@@ -998,7 +998,10 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
       const comment = id2comment[lc.id];
       $("<br/>").appendTo($filebox);
       $("<pre class='gerrit-line'/>")
-        .text((comment.patch_set !== pid ? `PS ${comment.patch_set}, ` : "") + "Line " + comment.line + ": " + lc.lineContent)
+        .text(
+          (comment.patch_set !== pid ? `PS ${comment.patch_set}, ` : "") + 
+          (comment.line === undefined ? 'File Comment' : `Line ${comment.line}: ${lc.lineContent}`)
+        )
         .addClass(comment.side === "PARENT" ? "gerrit-old-line" : "gerrit-new-line")
         .appendTo($filebox);
 
@@ -1116,7 +1119,7 @@ async function loadMessageComments($card, text, reviewData, revId) {
     _.chain(messageComments)
     .pairs()
     // Map each (file, comments) to a list of (file, referenced revision ID)
-    .map(([file, comments]) => comments.map(fc => [file, getRevisionIdByPatchNumber(reviewData, fc.patch_set)]))
+    .map(([file, comments]) => comments.filter(fc => fc.line !== undefined).map(fc => [file, getRevisionIdByPatchNumber(reviewData, fc.patch_set)]))
     // Flatten so we just have one big list of (file, revision ID)
     .flatten(true)
     // Many comments refer to the same (file, revision ID), so we dedupe by converting
@@ -1136,7 +1139,7 @@ async function loadMessageComments($card, text, reviewData, revId) {
       const fcRevId = getRevisionIdByPatchNumber(reviewData, fc.patch_set);
       const isSamePatchSet = fcRevId === revId;
       const fileLines = fileRevIdToContentLines[`${file}___${fcRevId}`];
-      const lineContent = (fc.side === "PARENT" || !fileLines) ? "(unavailable...)" : fileLines[fc.line-1];
+      const lineContent = (fc.side === "PARENT" || !fileLines) ? "(unavailable...)" : fc.line === undefined ? undefined : fileLines[fc.line-1];
       lineComments.push({id: fc.id, line: fc.line, lineContent: lineContent, comments: fc.message.split("\n"), side: fc.side, patchNumber: fc.patch_set});
     }
     return {file, lineComments};
