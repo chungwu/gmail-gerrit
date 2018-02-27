@@ -132,8 +132,8 @@ function initializeAuth() {
 
 function loadChanges(callback) {
   var options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
-  //var query = "(is:reviewer OR is:owner) AND -age:7d";
-  var query = "-age:7d";
+  // var query = "(is:reviewer OR is:owner) AND -age:7d";
+  var query = "-age:3d";
   ajax("/changes/", callback, 'GET', {q: query, o: options}, {traditional: true});
   return true;
 }
