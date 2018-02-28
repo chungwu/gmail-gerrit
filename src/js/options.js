@@ -23,7 +23,7 @@ function save() {
   const service = analytics.getService("gmail_gerrit_extension");
   service.getConfig().addCallback((config) => {
     config.setTrackingPermitted(allowTracking);
-    _flashMessage("Saved! You should reload your Gmail tabs to reflect the changes.");
+    _flashMessage("Saved! You should reload your Gmail or Inbox tabs to reflect the changes.");
   });
   return false;
 }

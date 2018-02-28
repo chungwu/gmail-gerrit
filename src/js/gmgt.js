@@ -269,8 +269,8 @@ async function sendMessage(msg) {
         resolve(resp);
       });
     } catch(err) {
-      resolve({success: false, err_msg: "Gerrit extension has been updated to a new version. Please reload your Gmail tab!"});
-      flashMessage("Oops, Gerrit extension has been updated to a new version. Please reload your Gmail tab!");
+      resolve({success: false, err_msg: "Gerrit extension has been updated to a new version. Please reload your Gmail or Inbox tab!"});
+      flashMessage("Oops, Gerrit extension has been updated to a new version. Please reload your Gmail or Inbox tab!");
       tracker.sendAppView("extension_updated");
     }
   });
