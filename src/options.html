@@ -7,8 +7,9 @@ input { font-size: 14px; padding: 5px; width: 500px;}
 label { margin: 5px 0; display: block; }
 .form-row { margin: 20px 0; }
 .form-note { font-size: 12px; color: #888; margin-top: 5px; }
-.form-note code { font-size: 10px; color: #e83e8c }
+.form-note code { font-size: 12px; color: #e83e8c }
 .message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none;}
+ul { padding-left: 20px; }
 </style>
 <script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
 <script type="text/javascript" src="js/google-analytics-bundle.js"></script>
@@ -44,6 +45,24 @@ label { margin: 5px 0; display: block; }
       <label>Context Lines: </label><input id="context-lines"/>
     </div>
     <div class="form-note">Number of context lines to display when showing diffs.</div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>Gerrit Query for Inbox: </label><input id="inbox-query"/>
+    </div>
+    <div class="form-note">
+      Gerrit query to issue when annotating threads in your inbox.  The extension will run this query against your
+      Gerrit instance, and then attempt to match the results against the threads in your inbox to figure out which
+      threads to annotate with their Gerrit review status.  If your query is too broad, your Gerrit instance may
+      take a long time to execute it (and your Gerrit admin may not be very happy about it), so you should make 
+      sure the query only covers Gerrit changes that you want to see annotated in your inbox.  You can read about 
+      the <a href="https://gerrit-review.googlesource.com/Documentation/user-search.html">query syntax here</a>.  
+      Some example queries are:
+      <ul>
+        <li><code>(owner:self OR reviewer:self OR assignee:self) -age:7d</code> -- changes within the last week for which you are the owner or a reviewer.</li>
+        <li><code>is:open project:foo limit:100</code> -- at most 100 open changes for project foo.</li>
+      </ul>
+    </div>
   </div>
   <div class="form-row">
     <div>

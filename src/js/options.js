@@ -9,16 +9,15 @@ function save() {
   }
 
   const context = _validateInt($("#context-lines").val());
-
+  const inboxQuery = $("#inbox-query").val();
   const botNames = $("#bot-names").val();
-
   const allowTracking = $("#allow-tracking").prop("checked");
 
   localStorage['host'] = url;
   localStorage['gmail'] = gmail;
   localStorage['contextLines'] = context;
   localStorage['botNames'] = botNames;
-  
+  localStorage['inboxQuery'] = inboxQuery;
 
   const service = analytics.getService("gmail_gerrit_extension");
   service.getConfig().addCallback((config) => {
@@ -70,6 +69,7 @@ function load() {
   $("#gmail").val(localStorage['gmail']);
   $("#context-lines").val(localStorage['contextLines'] || "3");
   $("#bot-names").val(localStorage['botNames'] || "jenkins");
+  $("#inbox-query").val(localStorage['inboxQuery'] || "(owner:self OR reviewer:self OR assignee:self) -age:7d");
   const service = analytics.getService("gmail_gerrit_extension");
   tracker = service.getTracker("UA-114677209-1");
   tracker.sendAppView("options");

@@ -131,9 +131,8 @@ function initializeAuth() {
 }
 
 function loadChanges(callback) {
-  var options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
-  // var query = "(is:reviewer OR is:owner) AND -age:7d";
-  var query = "-age:3d";
+  const options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
+  const query = gerritInboxQuery();
   ajax("/changes/", callback, 'GET', {q: query, o: options}, {traditional: true});
   return true;
 }
@@ -274,6 +273,10 @@ function gerritGmail() {
   return localStorage['gmail'];
 }
 
+function gerritInboxQuery() {
+  return localStorage['inboxQuery'] || DEFAULT_INBOX_QUERY;
+}
+
 function user() {
   return localStorage['user'];
 }
@@ -303,6 +306,7 @@ function loadSettings(callback) {
     contextLines: localStorage['contextLines'] || 3, 
     user: user(), 
     hasPassword: password() != '',
+    inboxQuery: gerritInboxQuery(),
     botNames: (localStorage['botNames'] || "jenkins").split(",").map(function(x) { return x.trim();})
   };
   callback(settings);
@@ -339,5 +343,15 @@ chrome.runtime.onInstalled.addListener(details => {
   console.log("Installed:", details);
   if (details.reason === "install") {
     setup();
+  } else {
+    migrate();
   }
 });
+
+DEFAULT_INBOX_QUERY = "(owner:self OR reviewer:self OR assignee:self) -age:7d";
+function migrate() {
+  if (localStorage["inboxQuery"] === undefined) {
+    console.log("Setting initial inboxQuery");
+    localStorage["inboxQuery"] = DEFAULT_INBOX_QUERY;
+  }
+}
