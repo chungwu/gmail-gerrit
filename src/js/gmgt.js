@@ -40,10 +40,12 @@ function extractReviewers(data) {
   for (const label of allLabels) {
     addReviewersForLabel(label);
   }
-  for (const rev of data.reviewers.REVIEWER) {
-    const rk = reviewerKey(rev);
-    if (!rk in reviewers) {
-      reviewers[rk] = mkrev(rev);
+  if (data.reviewers && data.reviewers.REVIEWER) {
+    for (const rev of data.reviewers.REVIEWER) {
+      const rk = reviewerKey(rev);
+      if (!rk in reviewers) {
+        reviewers[rk] = mkrev(rev);
+      }
     }
   }
   return _.values(reviewers);
