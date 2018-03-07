@@ -1743,6 +1743,10 @@ class GmailDom {
         if (newThreadsCheckerId) {
           clearInterval(newThreadsCheckerId);
         }
+        if (!this.isShowingThread()) {
+          console.log("Hmm, not showing threadlist or thread; try again in 5s");
+          setTimeout(check, 5000);
+        }
       }
     }
     $(window).bind("hashchange", () => setTimeout(check, 100));
