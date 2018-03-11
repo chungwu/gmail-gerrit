@@ -265,29 +265,44 @@ function isAuthenticated() {
   return _GERRIT_AUTH !== undefined;
 }
 
+function gerritSettings() {
+  const settingsString = localStorage["settings"];
+  return settingsString ? JSON.parse(settingsString) : {};
+}
+
+function defaultGerritInstance() {
+  const settings = gerritSettings();
+  if (settings.gerritInstances && settings.gerritInstances.length > 0) {
+    return settings.gerritInstances[0];
+  } else {
+    return undefined;
+  }
+}
+
 function gerritUrl() {
-  return localStorage['host'];
+  const settings = defaultGerritInstance();
+  return settings ? settings['url'] : undefined;
 }
 
 function gerritGmail() {
-  return localStorage['gmail'];
+  const settings = defaultGerritInstance();
+  return settings ? settings['gmail'] : undefined;
 }
 
 function gerritInboxQuery() {
-  return localStorage['inboxQuery'] || DEFAULT_INBOX_QUERY;
+  const settings = defaultGerritInstance();
+  return settings ? settings['inboxQuery'] : DEFAULT_INBOX_QUERY;
 }
 
-function user() {
-  return localStorage['user'];
-}
-
-function password() {
-  return localStorage['password'];
+function gerritBotNames() {
+  const settings = defaultGerritInstance();
+  return settings ? settings['botNames'] : [];
 }
 
 function hasSuccessfullyConnected() {
   return localStorage['hasSuccessfullyConnected'];
 }
+
 
 function authenticate(callback) {
   initializeAuth().done(function(result) {
@@ -300,16 +315,17 @@ function authenticate(callback) {
 }
 
 function loadSettings(callback) {
-  var settings = {
+  // Temporarily continue with the same settings schema for gmgt, which doesn't yet support
+  // having multiple Gerrit instances yet.
+  const settings = gerritSettings();
+  const tempSettings = {
     url: gerritUrl(), 
     gmail: gerritGmail(), 
-    contextLines: localStorage['contextLines'] || 3, 
-    user: user(), 
-    hasPassword: password() != '',
+    contextLines: settings["contextLines"] || 10,
     inboxQuery: gerritInboxQuery(),
-    botNames: (localStorage['botNames'] || "jenkins").split(",").map(function(x) { return x.trim();})
+    botNames: gerritBotNames()
   };
-  callback(settings);
+  callback(tempSettings);
   return true;
 }
 
@@ -353,5 +369,23 @@ function migrate() {
   if (localStorage["inboxQuery"] === undefined) {
     console.log("Setting initial inboxQuery");
     localStorage["inboxQuery"] = DEFAULT_INBOX_QUERY;
+  }
+  if (localStorage["settings"] === undefined) {
+    console.log("Migrating to localStorage[settings]");
+    if (localStorage["host"] !== undefined) {
+      const migrated = {
+        gerritInstances: [{
+          url: localStorage["host"],
+          gmail: localStorage["gmail"],
+          botNames: localStorage["botNames"].split(",").map(n => n.trim()),
+          inboxQuery: localStorage["inboxQuery"]
+        }],
+        contextLines: parseInt(localStorage["contexLines"]) || 10,
+      };
+      console.log("Migrated to:", migrated);
+      localStorage["settings"] = JSON.stringify(migrated);
+    } else {
+      localStorage["settings"] = JSON.stringify({});
+    }
   }
 }

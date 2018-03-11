@@ -3,15 +3,46 @@
 <style type="text/css">
 html, body { color: #333; font-size: 14px; padding: 0 5px; max-height: 400px; overflow: auto; margin:0;}
 a { color: #36c; cursor: pointer; text-decoration: none; outline:none; }
+a:hover { text-decoration: underline; }
 input { font-size: 14px; padding: 5px; width: 500px;}
 label { margin: 5px 0; display: block; }
+form { margin-top: 10px; }
 .form-row { margin: 20px 0; }
+.form-row:first-child { margin-top: 0; }
+.form-row:last-child { margin-bottom: 0; }
 .form-note { font-size: 12px; color: #888; margin-top: 5px; }
 .form-note code { font-size: 12px; color: #e83e8c }
-.message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none;}
+.form-help { display: none; margin-bottom: 5px;}
+.message { padding: 10px; margin: 10px; background-color: #ffffcc; font-weight: bold; display: none; }
 ul { padding-left: 20px; }
+.gerrit-instance-group {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin: 10px 0;
+  background-color: #fdfdfd;
+}
+.remove-gerrit-instance { color: #B71C1C; float: right;}
+.help-icon {
+  display: inline-block;
+  background-image: url("icons/help.png");
+  height: 12px;
+  width: 12px;
+  background-size: 12px;
+  vertical-align: middle;
+  cursor: pointer;
+  margin-left: 5px;
+}
+.gerrit-instance-header h6 {
+  margin: 0;
+  padding: 0;
+  text-transform: uppercase;
+  font-size: 14px;
+  color: #aaa;
+}
 </style>
 <script type="text/javascript" src="js/jquery-3.3.1.min.js"></script>
+<script type="text/javascript" src="js/jquery.serializejson.js"></script>
+<script type="text/javascript" src="js/underscore-min.js"></script>
 <script type="text/javascript" src="js/google-analytics-bundle.js"></script>
 <script type="text/javascript" src="js/options.js"></script>
 </head>
@@ -22,11 +53,40 @@ ul { padding-left: 20px; }
 </div>
 <form class="options-form">
   <div class="message"></div>
+  <div id="gerrit-instances-group" class="gerrit-instances-group"></div>
+  <a class="add-gerrit-instance">&#x1f7a7; Add another Gerrit instance</a>
   <div class="form-row">
     <div>
-      <label>Gerrit URL:</label> <input id="url"/>
+      <label>Number of Context Lines: <span class="help-icon"></span> </label>
+      <input name="contextLines:number"/>
+    </div>
+    <div class="form-note form-help">Number of context lines to display when showing diffs.</div>
+  </div>
+  <div class="form-row">
+    <div>
+      <label><input name="allowTracking:boolean" type="checkbox" style="width: auto" checked/> Allow anonymous usage tracking</label>
     </div>
     <div class="form-note">
+      Help us improve the extension!
+    </div>
+  </div>
+
+  <div>
+    <button action="submit">Save</button>
+  </div>
+</form>
+
+<div style="display:none" id="gerrit-instance-group-template" class="gerrit-instance-group">
+  <div class="form-row gerrit-instance-header">
+    <a class="remove-gerrit-instance">&#x2796; Remove this Gerrit instance</a>
+    <h6>Gerrit instance details</h6>
+  </div>
+  <div class="form-row">
+    <div>
+      <label>Gerrit URL: <span class="help-icon"></span></label> 
+      <input name="gerritInstances[${index}][url]" />
+    </div>
+    <div class="form-note form-help">
       The URL where your Gerrit instance is hosted.  For example, <code>https://gerrit-review.googlesource.com</code>.
       If your Gerrit code review URLs look like <code>https://something.somewhere.com/287</code>, then you should put
       <code>https://something.somewhere.com</code> here.
@@ -34,23 +94,19 @@ ul { padding-left: 20px; }
   </div>
   <div class="form-row">
     <div>
-      <label>Enabled Gmail Account: </label><input id="gmail"/>
+      <label>Enabled Gmail account: <span class="help-icon"></span></label>
+      <input name="gerritInstances[${index}][gmail]"/>
     </div>
-    <div class="form-note">
+    <div class="form-note form-help">
       The Gmail address that you want to enable this extension for. If left empty, the extension is enabled for all addresses.
     </div>
   </div>
   <div class="form-row">
     <div>
-      <label>Context Lines: </label><input id="context-lines"/>
+      <label>Gerrit query for annotating threads: <span class="help-icon"></span></label>
+      <input name="gerritInstances[${index}][inboxQuery]"/>
     </div>
-    <div class="form-note">Number of context lines to display when showing diffs.</div>
-  </div>
-  <div class="form-row">
-    <div>
-      <label>Gerrit Query for Inbox: </label><input id="inbox-query"/>
-    </div>
-    <div class="form-note">
+    <div class="form-note form-help">
       Gerrit query to issue when annotating threads in your inbox.  The extension will run this query against your
       Gerrit instance, and then attempt to match the results against the threads in your inbox to figure out which
       threads to annotate with their Gerrit review status.  If your query is too broad, your Gerrit instance may
@@ -66,26 +122,16 @@ ul { padding-left: 20px; }
   </div>
   <div class="form-row">
     <div>
-      <label>Bot names: </label><input id="bot-names"/>
+      <label>Bot names: <span class="help-icon"></span></label>
+      <input  name="gerritInstances[${index}][botNames]"/>
     </div>
-    <div class="form-note">
+    <div class="form-note form-help">
       Comma-separated list of usernames of automated bots that also comment on your Gerrit changes (like jenkins, etc.)
       This is used to ignore comments made by automated bots when determining status of your code reviews, or
       figuring out which previous patch set to diff against.
     </div>
   </div>
-  <div class="form-row">
-    <div>
-      <label><input id="allow-tracking" type="checkbox" style="width: auto" checked/> Allow anonymous usage tracking</label>
-    </div>
-    <div class="form-note">
-      Help us improve the extension!
-    </div>
-  </div>
+</div>
 
-  <div>
-    <button action="submit">Save</button>
-  </div>
-</form>
 </body>
 </html>

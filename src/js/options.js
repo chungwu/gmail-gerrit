@@ -1,24 +1,26 @@
 function save() {
-  const url = _validateUrl($("#url").val());
-  if (url === false) {
-    return false; 
+  const data = $(this).serializeJSON({
+    checkboxUncheckedValue: "false",
+    useIntKeysAsArrayIndex: true,
+  });
+  data.gerritInstances = _.compact(data.gerritInstances || []);
+  
+  for (const gerritInstance of data.gerritInstances) {
+    gerritInstance.url = _validateUrl(gerritInstance.url);
+    if (gerritInstance.url === false) {
+      return false; 
+    }
+    gerritInstance.gmail = _validateEmail(gerritInstance.gmail);
+    if (gerritInstance.gmail === false) {
+      return false;
+    }
+    gerritInstance.botNames = gerritInstance.botNames.split(",").map(n => n.trim());
   }
-  const gmail = _validateEmail($("#gmail").val());
-  if (gmail === false) {
-    return false;
-  }
+  console.log("Saving", data);
+  
+  localStorage["settings"] = JSON.stringify(data);
 
-  const context = _validateInt($("#context-lines").val());
-  const inboxQuery = $("#inbox-query").val();
-  const botNames = $("#bot-names").val();
-  const allowTracking = $("#allow-tracking").prop("checked");
-
-  localStorage['host'] = url;
-  localStorage['gmail'] = gmail;
-  localStorage['contextLines'] = context;
-  localStorage['botNames'] = botNames;
-  localStorage['inboxQuery'] = inboxQuery;
-
+  const allowTracking = data.allowTracking;
   const service = analytics.getService("gmail_gerrit_extension");
   service.getConfig().addCallback((config) => {
     config.setTrackingPermitted(allowTracking);
@@ -65,23 +67,72 @@ function _validateUrl(url) {
   return url;
 }
 
+const DEFAULT_GERRIT_INSTANCE_OPTIONS = {
+  inboxQuery: "(owner:self OR reviewer:self OR assignee:self) -age:7d",
+  botNames: "jenkins",
+};
+
 function load() {
-  $("#url").val(localStorage['host']);
-  $("#gmail").val(localStorage['gmail']);
-  $("#context-lines").val(localStorage['contextLines'] || "3");
-  $("#bot-names").val(localStorage['botNames'] || "jenkins");
-  $("#inbox-query").val(localStorage['inboxQuery'] || "(owner:self OR reviewer:self OR assignee:self) -age:7d");
+  const settings = JSON.parse(localStorage["settings"]);
+  console.log("Deserialized settings", settings);
+  const gerritInstances = settings.gerritInstances || [];
+  
+  $gerritInstances = $("#gerrit-instances-group");
+  if (gerritInstances.length == 0) {
+    $gerritInstances.append(createGerritInstanceGroup(0, DEFAULT_GERRIT_INSTANCE_OPTIONS));
+  }  else {
+    for (const [index, value] of gerritInstances.entries()) {
+      $gerritInstances.append(createGerritInstanceGroup(index, value));
+    }
+  }
+
+  let nextIndex = $(".gerrit-instance-group").length;
+  $(".add-gerrit-instance").click(() => {
+    $gerritInstances.append(createGerritInstanceGroup(nextIndex, DEFAULT_GERRIT_INSTANCE_OPTIONS));
+    nextIndex += 1;
+  });
+
+  $("input[name='contextLines:number']").val(settings.contextLines || 10);
   const service = analytics.getService("gmail_gerrit_extension");
   tracker = service.getTracker("UA-114677209-1");
   tracker.sendAppView("options");
   service.getConfig().addCallback((config) => {
-    $("#allow-tracking").prop("checked", config.isTrackingPermitted());
+    $("input[name='allowTracking:boolean']").prop("checked", config.isTrackingPermitted());
   });
 }
+
+
+function createGerritInstanceGroup(index, data) {
+  const $group = $("#gerrit-instance-group-template").clone();
+  $("input", $group).each(function() {
+    const realName = $(this).attr("name").replace("${index}", `${index}`);
+    $(this).attr("name", realName);
+  });
+  if (data) {
+    for (const [key, val] of _.pairs(data)) {
+      const inputName = `gerritInstances[${index}][${key}]`;
+      const $input = $(`input[name="${inputName}"]`, $group);
+      if (_.isArray(val)) {
+        $input.val(val.join(", "));
+      } else {
+        $input.val(val);
+      }
+    }
+  }
+  $(".remove-gerrit-instance", $group).click(() => {
+    $group.slideUp("fast", function() {$(this).remove();});
+  });
+  return $group.removeAttr("id").slideDown("fast");
+}
+
 
 function init() {
   $(".options-form").submit(save);
   load();
+  $("form").on("click", ".help-icon", function() {
+    const $parent = $(this).closest(".form-row");
+    $(".form-help", $parent).toggle("fast");
+  });
 }
 
 $(init);

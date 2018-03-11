@@ -33,6 +33,7 @@
   "web_accessible_resources": [
     "icons/gerrit-big.png",
     "icons/gerrit.png",
-    "icons/add-comment.png"
+    "icons/add-comment.png",
+    "icons/help.png"
   ]
 }
