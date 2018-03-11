@@ -30,6 +30,7 @@ function save() {
 function _flashMessage(msg) {
   $(".message").text(msg).show();
   window.scrollTo(0, 0);
+  $("html, body").animate({scrollTop: 0}, "slow");
 }
 
 function _validateEmail(email) {
