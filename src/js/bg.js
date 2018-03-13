@@ -1,31 +1,31 @@
 function contentHandler(request, sender, callback) {
   console.log("REQUEST", request);
   if (request.type == "loadChange") {
-    return wrapAsyncHandler(loadChange(request.id), callback);
+    return wrapAsyncHandler(loadChange(request.url, request.id), callback);
   } else if (request.type == "loadFiles") {
-    return wrapAsyncHandler(loadFiles(request.id, request.revId), callback);
+    return wrapAsyncHandler(loadFiles(request.url, request.id, request.revId), callback);
   } else if (request.type == "loadChanges") {
-    return wrapAsyncHandler(loadChanges(), callback);
+    return wrapAsyncHandler(loadChanges(request.url), callback);
   } else if (request.type == "loadDiff") {
-    return wrapAsyncHandler(loadDiff(request.id, request.revId, request.file, request.baseId), callback);
+    return wrapAsyncHandler(loadDiff(request.url, request.id, request.revId, request.file, request.baseId), callback);
   } else if (request.type == "loadComments") {
-    return wrapAsyncHandler(loadComments(request.id, request.revId), callback);
+    return wrapAsyncHandler(loadComments(request.url, request.id, request.revId), callback);
   } else if (request.type == "loadFileContent") {
-    return wrapAsyncHandler(loadFileContent(request.id, request.revId, request.file), callback);
+    return wrapAsyncHandler(loadFileContent(request.url, request.id, request.revId, request.file), callback);
   } else if (request.type == "viewDiff") {
-    return showDiffs(request.id);
+    return showDiffs(request.url, request.id);
   } else if (request.type == "commentDiff") {
-    return wrapAsyncHandler(commentDiff(request.id, request.score, request.comment), callback);
+    return wrapAsyncHandler(commentDiff(request.url, request.id, request.score, request.comment), callback);
   } else if (request.type == "submitDiff") {
-    return wrapAsyncHandler(submitDiff(request.id), callback);
+    return wrapAsyncHandler(submitDiff(request.url, request.id), callback);
   } else if (request.type == "rebaseChange") {
-    return wrapAsyncHandler(rebaseChange(request.id), callback);
+    return wrapAsyncHandler(rebaseChange(request.url, request.id), callback);
   } else if (request.type == "submitComments") {
-    return wrapAsyncHandler(submitComments(request.id, request.revId, request.review), callback);
+    return wrapAsyncHandler(submitComments(request.url, request.id, request.revId, request.review), callback);
   } else if (request.type == "settings") {
     return loadSettings(callback);
   } else if (request.type == "authenticate") {
-    return wrapAsyncHandler(authenticate(), callback);
+    return wrapAsyncHandler(authenticate(request.url), callback);
   } else if (request.type == "showSetup") {
     return showPageActionError(sender.tab.id);
   } else if (request.type == "showLogin") {
@@ -53,8 +53,8 @@ function hidePageAction(tabId) {
   chrome.pageAction.hide(tabId);
 }
 
-async function commentDiff(id, score, comment) {
-  const url = `/changes/${id}/revisions/current/review`;
+async function commentDiff(gerritUrl, id, score, comment) {
+  const path = `/changes/${id}/revisions/current/review`;
   const request = {};
   if (score !== undefined) {
     request.labels = {"Code-Review": score}
@@ -62,62 +62,66 @@ async function commentDiff(id, score, comment) {
   if (comment) {
     request.message = comment;
   }
-  return ajax(url, 'POST', request);
+  return ajax(gerritUrl, path, 'POST', request);
 }
 
-async function submitDiff(id) {
-  const url = `/changes/${id}/revisions/current/submit`;
-  return ajax(url, 'POST', {wait_for_merge: true});
+async function submitDiff(gerritUrl, id) {
+  const path = `/changes/${id}/revisions/current/submit`;
+  return ajax(gerritUrl, path, 'POST', {wait_for_merge: true});
 }
 
-async function rebaseChange(id) {
-  const url = `/changes/${id}/rebase`;
-  return ajax(url, 'POST');
+async function rebaseChange(gerritUrl, id) {
+  const path = `/changes/${id}/rebase`;
+  return ajax(gerritUrl, path, 'POST');
 }
 
-async function submitComments(id, revId, review) {
-  const url = `/changes/${id}/revisions/${revId}/review`;
-  return ajax(url, 'POST', review);
+async function submitComments(gerritUrl, id, revId, review) {
+  const path = `/changes/${id}/revisions/${revId}/review`;
+  return ajax(gerritUrl, path, 'POST', review);
 }
 
 _RE_AUTH = /xGerritAuth="([^"]+)"/
 _RE_USER = /"userName":"([^"]+)"/
 _RE_EMAIL = /"preferredEmail":"([^"]+)"/
-_GERRIT_AUTH = undefined;
+_GERRIT_AUTHS = {};
 
 function _extractRe(re, text) {
   const match = re.exec(text);
   return match ? match[1] : undefined;
 }
 
-async function initializeAuth() {
-  return new Promise((resolve, reject) => {
-    $.ajax(gerritUrl(), {timeout: 5000}).then(async (data) => {
-      console.log("INITIAL DATA", data);
-      const auth = _extractRe(_RE_AUTH, data);
-      if (auth) {
-        const email = _extractRe(_RE_EMAIL, data);    
-        _GERRIT_AUTH = auth;
-        resolve({email: email});
-      } else {
-        console.log("Failed to extract XSRF token from html; attempting to read from cookie");
-        const resp = await wrapChromeCall(chrome.cookies.getAll, [{domain: new URL(gerritUrl()).hostname, name: "XSRF_TOKEN"}]);
-        if (!resp || resp.length == 0 || !resp[0].value) {
-          console.log("Failed to read XSRF_TOKEN from cookie :-/");
-          _GERRIT_AUTH = undefined;
-          reject();
+async function initializeAuth(url) {
+  return new Promise((resolve) => {
+    $.ajax(url, {timeout: 5000})
+      .done(async (data) => {
+        const auth = _extractRe(_RE_AUTH, data);
+        if (auth) {
+          const email = _extractRe(_RE_EMAIL, data);    
+          _GERRIT_AUTHS[url] = auth;
+          resolve({success: true, email: email});
         } else {
-          _GERRIT_AUTH = resp[0].value;
-          console.log("Found XSRF token", _GERRIT_AUTH);
-          const details = await ajax("/accounts/self/detail");
-          console.log("ACCOUNT DETAILS", details);
-          if (details.success) {
-            resolve({email: details.data.email});
+          console.log("Failed to extract XSRF token from html; attempting to read from cookie for", url);
+          const resp = await wrapChromeCall(chrome.cookies.getAll, [{domain: new URL(url).hostname, name: "XSRF_TOKEN"}]);
+          if (!resp || resp.length == 0 || !resp[0].value) {
+            console.log("Failed to read XSRF_TOKEN from cookie :-/");
+            _GERRIT_AUTHS[url] = undefined;
+            resolve({success: false});
           } else {
-            reject();
+            _GERRIT_AUTHS[url] = resp[0].value;
+            console.log("Found XSRF token", _GERRIT_AUTHS[url]);
+            const details = await ajax(url, "/accounts/self/detail");
+            console.log("ACCOUNT DETAILS", details);
+            if (details.success) {
+              resolve({success: true, email: details.data.email});
+            } else {
+              resolve({success: false});
+            }
           }
         }
-      }
+      })
+    .fail(async (xhr, textStatus, errorThrown) => {
+      console.log("Failed to initializeAuth", xhr);
+      resolve({success: false});
     });
   });
 }
@@ -129,13 +133,13 @@ function wrapAsyncHandler(promise, callback) {
   return true;
 }
 
-function loadChanges() {
+function loadChanges(gerritUrl) {
   const options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
   const query = gerritInboxQuery();
-  return ajax("/changes/", 'GET', {q: query, o: options}, {traditional: true});
+  return ajax(gerritUrl, "/changes/", 'GET', {q: query, o: options}, {traditional: true});
 }
 
-async function loadChange(id) {
+async function loadChange(gerritUrl, id) {
   const options = [
     'ALL_COMMITS', 
     'ALL_FILES',
@@ -147,32 +151,35 @@ async function loadChange(id) {
     'CURRENT_ACTIONS',
     'CHANGE_ACTIONS',
   ];
-  return ajax(`/changes/${id}/detail`, 'GET', {o: options}, {traditional: true});
+  return ajax(gerritUrl, `/changes/${id}/detail`, 'GET', {o: options}, {traditional: true});
 }
 
-async function loadComments(id, revId) {
+async function loadComments(gerritUrl, id, revId) {
   let url = `/changes/${id}`;
   if (revId) {
     url += `/revisions/${revId}`;
   }
   url += "/comments/";
-  return ajax(url);
+  return ajax(gerritUrl, url);
 }
 
-async function loadDiff(changeId, revId, file, baseId) {
+async function loadDiff(gerritUrl, changeId, revId, file, baseId) {
   const options = {intraline: true, context: "ALL"};
   if (baseId) {
     options.base = baseId;
   }
-  return ajax(`/changes/${changeId}/revisions/${revId}/files/${encodeURIComponent(file)}/diff`, 'GET', options);
+  return ajax(gerritUrl, `/changes/${changeId}/revisions/${revId}/files/${encodeURIComponent(file)}/diff`, 'GET', options);
 }
 
-async function loadFiles(changeId, revId) {
-  return ajax(`/changes/${changeId}/revisions/${revId}/files/`);
+async function loadFiles(gerritUrl, changeId, revId) {
+  return ajax(gerritUrl, `/changes/${changeId}/revisions/${revId}/files/`);
 }
 
-async function loadFileContent(changeId, revId, file) {
-  const resp = await ajax(`/changes/${changeId}/revisions/${revId}/files/${encodeURIComponent(file)}/content`, undefined, undefined, undefined, "text");
+async function loadFileContent(gerritUrl, changeId, revId, file) {
+  const resp = await ajax(
+    gerritUrl, 
+    `/changes/${changeId}/revisions/${revId}/files/${encodeURIComponent(file)}/content`, 
+    undefined, undefined, undefined, "text");
   if (!resp.success) {
     return resp;
   } else {
@@ -182,7 +189,7 @@ async function loadFileContent(changeId, revId, file) {
 }
 
 const _outstandingRequests = {};
-async function ajax(uri, opt_type, opt_data, opt_opts, opt_dataType) {
+async function ajax(gerritUrl, path, opt_type, opt_data, opt_opts, opt_dataType) {
   const dataType = opt_dataType || "json";
   const settings = {
     dataType: dataType,
@@ -195,7 +202,7 @@ async function ajax(uri, opt_type, opt_data, opt_opts, opt_dataType) {
 
   settings.type = opt_type || 'GET';
   settings.headers = settings.headers || {};
-  settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTH;
+  settings.headers['X-Gerrit-Auth'] = _GERRIT_AUTHS[gerritUrl];
 
   if (opt_data) {
     if (settings.type == 'GET') {
@@ -206,11 +213,12 @@ async function ajax(uri, opt_type, opt_data, opt_opts, opt_dataType) {
     }
   }
 
+  const uri = gerritUrl + path;
   const key = JSON.stringify([uri, settings.dataType, settings.data]);
   if (settings.type == "GET" && key in _outstandingRequests) {
     console.log("Collapsing calls", key);
   } else {
-    _outstandingRequests[key] = $.ajax(gerritUrl() + uri, settings)
+    _outstandingRequests[key] = $.ajax(uri, settings)
       .always(function() { delete _outstandingRequests[key]; });
   }
 
@@ -223,11 +231,11 @@ async function ajax(uri, opt_type, opt_data, opt_opts, opt_dataType) {
         console.log("ajax error", xhr);
         if (xhr.status === 403 && xhr.responseText.trim() === "Authentication required") {
           console.log("403!  Try getting auth again");
-          try {
-            await initializeAuth();
+          const auth = await initializeAuth(gerritUrl);
+          if (auth.success) {
             console.log("Re-issuing ajax call using new token...");
-            resolve(await ajax(uri, opt_type, opt_data, opt_opts, opt_dataType));
-          } catch (err) {
+            resolve(await ajax(gerritUrl, path, opt_type, opt_data, opt_opts, opt_dataType));
+          } else {
             resolve({success: false, status: xhr.status, err_msg: xhr.responseText.trim()});
           }
         } else {
@@ -238,8 +246,8 @@ async function ajax(uri, opt_type, opt_data, opt_opts, opt_dataType) {
   });
 }
 
-function showDiffs(id) {
-  chrome.tabs.create({url:gerritUrl() + "/" + id});
+function showDiffs(url, id) {
+  chrome.tabs.create({url: `${url}/${id}`});
 }
 
 function login() {
@@ -248,7 +256,6 @@ function login() {
 
 function setup() {
   chrome.runtime.openOptionsPage();
-  // chrome.tabs.create({url:"options.html"});
 }
 
 function isAuthenticated() {
@@ -294,28 +301,19 @@ function hasSuccessfullyConnected() {
 }
 
 
-async function authenticate() {
-  try {
-    const result = await initializeAuth();
-    console.log("email: " + result.email + ", auth: " + _GERRIT_AUTH);
+async function authenticate(gerritUrl) {
+  const result = await initializeAuth(gerritUrl);
+
+  if (result.success) {
+    console.log("email: " + result.email + ", auth: " + _GERRIT_AUTHS[gerritUrl]);
     return {success: true, email: result.email};
-  } catch (err) {
+  } else {
     return {success: false, err_msg: "Cannot authenticate"};
   }
 }
 
 function loadSettings(callback) {
-  // Temporarily continue with the same settings schema for gmgt, which doesn't yet support
-  // having multiple Gerrit instances yet.
-  const settings = gerritSettings();
-  const tempSettings = {
-    url: gerritUrl(), 
-    gmail: gerritGmail(), 
-    contextLines: settings["contextLines"] || 10,
-    inboxQuery: gerritInboxQuery(),
-    botNames: gerritBotNames()
-  };
-  callback(tempSettings);
+  callback(gerritSettings());
   return true;
 }
 

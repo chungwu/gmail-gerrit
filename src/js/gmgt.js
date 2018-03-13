@@ -1,5 +1,6 @@
 const gSettings = {};
 let dom = null;
+let changeGerritUrl = null;
 let changeId = null;
 let tracker = null;
 const re_rgid = new RegExp(".*/(\\d+)$");
@@ -13,12 +14,12 @@ function labeledValue(label, value) {
   else { return label + value; }
 }
 
-function extractReviewers(data) {
+function extractReviewers(data, selfEmail) {
   const reviewers = {};
   function mkrev(rev) {
     return {
       name: rev.name, email: rev.email, login: reviewerKey(rev),
-      self: rev.email === gSettings.email, labels: []
+      self: rev.email === selfEmail, labels: []
     };
   }
   function reviewerKey(rev) {
@@ -51,38 +52,39 @@ function extractReviewers(data) {
   return _.values(reviewers);
 }
 
-async function loadAndRenderBox(id) {
-  const resp = await loadChange(id);
+async function loadAndRenderBox(gerritUrl, id) {
+  const resp = await loadChange(gerritUrl, id);
   if (!resp.success) {
-    renderErrorBox(id, resp.err_msg);
+    renderErrorBox(gerritUrl, id, resp.err_msg);
   } else {
-    renderBox(id, resp.data);
+    renderBox(gerritUrl, id, resp.data);
   }
 }
 
-function performActionCallback(id, resp) {
+function performActionCallback(gerritUrl, id, resp) {
   if (!resp.success) {
-    renderErrorBox(id, resp.err_msg);
+    renderErrorBox(gerritUrl, id, resp.err_msg);
   } else {
-    loadAndRenderBox(id);
+    loadAndRenderBox(gerritUrl, id);
   }
 }
 
-function renderErrorBox(id, err_msg) {
+function renderErrorBox(gerritUrl, id, err_msg) {
+  const instance = getGerritInstance(gerritUrl);
   $sideBox.empty();
-  makeInfoBoxHeader(id, "Error").appendTo($sideBox);
+  makeInfoBoxHeader(gerritUrl, id, "Error").appendTo($sideBox);
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
-  if (!gSettings.auth) {
+  if (!instance.auth) {
     $("<div class='gerrit-sidebox-buttons'/>").appendTo($sideBox)
-      .append(makeButton("Login", {href: gSettings.url, primary: true}).appendTo($sideBox))
-      .append(makeButton("Try again").appendTo($sideBox).click(() => renderChange(id)));
+      .append(makeButton("Login", {href: gerritUrl, primary: true}).appendTo($sideBox))
+      .append(makeButton("Try again").appendTo($sideBox).click(() => renderChange(gerritUrl, id)));
   }
 }
 
-function makeInfoBoxHeader(id, status) {
+function makeInfoBoxHeader(gerritUrl, id, status) {
   const $header = $("<h4/>");
   $("<img title='Gerrit'/>").prop("src", chrome.extension.getURL("icons/gerrit-big.png")).appendTo($header);
-  const $link = $("<a target='_blank'/>").prop("href", `gSettings.url/${id}`).text(id).appendTo($header);
+  const $link = $("<a target='_blank'/>").prop("href", `gerritUrl/${id}`).text(id).appendTo($header);
   $("<span>: </span>").appendTo($header);
   const $status = $("<span class='status'/>").text(status).appendTo($header);
   if (status == "Error" || status == "Failed Verify" || status == "Rejected" || status == "Cannot Merge") {
@@ -116,16 +118,17 @@ function maxCodeReviewScore(reviewData) {
   return _.max(values);
 }
 
-function renderBox(id, reviewData) {
+function renderBox(gerritUrl, id, reviewData) {
   $sideBox.empty();
 
-  const status = reviewStatus(reviewData);
-  const isOwner = isChangeOwner(reviewData);
-  const isReviewer = isChangeReviewer(reviewData);
-  const reviewers = extractReviewers(reviewData);
+  const instance = getGerritInstance(gerritUrl);
+  const status = reviewStatus(instance, reviewData);
+  const isOwner = isChangeOwner(reviewData, instance.email);
+  const isReviewer = isChangeReviewer(reviewData, instance.email);
+  const reviewers = extractReviewers(reviewData, instance.email);
   const maxCRScore = maxCodeReviewScore(reviewData);
 
-  makeInfoBoxHeader(id, status).appendTo($sideBox);
+  makeInfoBoxHeader(gerritUrl, id, status).appendTo($sideBox);
 
   const $content = $("<div class='gerrit-sidebox-content'/>").appendTo($sideBox);
   const $reviewers = $("<div class='note reviewers'/>").appendTo($content);
@@ -153,34 +156,34 @@ function renderBox(id, reviewData) {
   const perform = async (action, promise) => {
     const resp = await promise;
     if (promise) {
-      performActionCallback(id, resp);
+      performActionCallback(gerritUrl, id, resp);
       tracker.sendEvent("infobox", "click", action);
     }
   }
 
   const $basicButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
   $basicButtons.append(makeButton("View").click(() => {
-    viewDiff(id)
+    viewDiff(gerritUrl, id)
     tracker.sendEvent("infobox", "click", "view");
   }));
   if (status === "Failed Verify") {
-    const link = findFailedLink(reviewData);
+    const link = findFailedLink(reviewData, instance);
     if (link) {
       $basicButtons.append(makeButton("See Error", {href: link}).addClass("error-button"));
     }
   }
-  $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(id, undefined, true))));
+  $basicButtons.append(makeButton("Comment").click(() => perform("comment", commentDiff(gerritUrl, id, undefined, true))));
 
   if (status === "Approved") {
     if (isOwner && canSubmit(reviewData)) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
-        .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(id))));
+        .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(gerritUrl, id))));
     }
   } else if (status === "Merge Pending" || status === "Cannot Merge") {
     if (isOwner) {
       $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
-        .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(id))))
-        .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(id))));
+        .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(gerritUrl, id))))
+        .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(gerritUrl, id))));
     }
   } else if ((isReviewer || isOwner) && ["Merged", "Abandoned", "Merge Pending"].indexOf(status) < 0) {
     const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
@@ -189,19 +192,19 @@ function renderBox(id, reviewData) {
       $approveButtons.append(
         makeButton(
           "Approve" + (maxPermittedScore != 2 ? ` (+${maxPermittedScore})` : ""), 
-          {side: "left"}).click(() => perform("approve", commentDiff(id, maxPermittedScore, false))));
+          {side: "left"}).click(() => perform("approve", commentDiff(gerritUrl, id, maxPermittedScore, false))));
       if (isOwner) {
-        $approveButtons.append(makeButton("& submit", {side: "right"}).click(() => perform("approve_submit", approveSubmitDiff(id, maxPermittedScore))));
+        $approveButtons.append(makeButton("& submit", {side: "right"}).click(() => perform("approve_submit", approveSubmitDiff(gerritUrl, id, maxPermittedScore))));
       } else if (isReviewer) {
-        $approveButtons.append(makeButton("& comment", {side: "right"}).addClass("").click(() => perform("approve_comment", commentDiff(id, maxPermittedScore, true))));
+        $approveButtons.append(makeButton("& comment", {side: "right"}).addClass("").click(() => perform("approve_comment", commentDiff(gerritUrl, id, maxPermittedScore, true))));
       }
     }
   }
   return $content;
 }
 
-function findFailedLink(reviewData) {
-  const lastFailedMessageIndex = _.findLastIndex(reviewData.messages, m => isBot(m.author.username) && m.message.indexOf("Verified-1") >= 0);
+function findFailedLink(instance, reviewData) {
+  const lastFailedMessageIndex = _.findLastIndex(reviewData.messages, m => isBot(m.author.username, instance) && m.message.indexOf("Verified-1") >= 0);
   if (lastFailedMessageIndex >= 0) {
     const failedMessage = reviewData.messages[lastFailedMessageIndex].message;
     const links = linkify.find(failedMessage);
@@ -212,29 +215,30 @@ function findFailedLink(reviewData) {
   return undefined;
 }
 
-async function renderChange(id) {
+async function renderChange(gerritUrl, id) {
+  changeGerritUrl = gerritUrl;
   changeId = id;
 
   const $sidebarBoxes = dom.sideBoxContainer();
   $sideBox.empty().prependTo($sidebarBoxes);
 
-  const resp = await loadChange(id);
+  const resp = await loadChange(gerritUrl, id);
   if (!resp.success) {
-    renderErrorBox(id, resp.err_msg);
+    renderErrorBox(gerritUrl, id, resp.err_msg);
     return;
   }
   const data = resp.data;
 
   tracker.sendAppView("thread");
 
-  renderBox(id, data);
+  renderBox(gerritUrl, id, data);
 
-  formatThread(data);
+  formatThread(gerritUrl, id, data);
 }
 
 async function authenticatedSend(msg) {
   async function authAndSend() {
-    const resp = await authenticate();
+    const resp = await authenticate(msg.url);
     if (resp.success) {
       return await sendMessage(msg);
     } else {
@@ -244,7 +248,8 @@ async function authenticatedSend(msg) {
     }
   }
 
-  if (!gSettings.auth) {
+  const instance = getGerritInstance(msg.url);
+  if (!instance.auth) {
     console.log("Not authenticated! authenticate first...");
     return await authAndSend();
   } else {
@@ -278,20 +283,20 @@ async function sendMessage(msg) {
   });
 }
 
-async function loadChange(id) {
-  return authenticatedSend({type: "loadChange", id: id});
+async function loadChange(url, id) {
+  return authenticatedSend({type: "loadChange", url, id});
 }
 
-async function loadChanges() {
-  return authenticatedSend({type: "loadChanges"});
+async function loadChanges(url) {
+  return authenticatedSend({type: "loadChanges", url});
 }
 
 
-async function loadDiff(id, revId, file, baseId) {
-  return authenticatedSend({type: "loadDiff", id: id, revId: revId, file: file, baseId: baseId});
+async function loadDiff(url, id, revId, file, baseId) {
+  return authenticatedSend({type: "loadDiff", url, id, revId, file, baseId});
 }
 
-async function loadAndCacheDiff(reviewData, revId, file, baseId) {
+async function loadAndCacheDiff(gerritUrl, reviewData, revId, file, baseId) {
   const rev = reviewData.revisions[revId];
   if (!rev.diffs) {
     rev.diffs = {};
@@ -300,7 +305,7 @@ async function loadAndCacheDiff(reviewData, revId, file, baseId) {
     rev.diffs[file] = {};
   }
   const makePromise = function() {
-    return loadDiff(reviewData._number, revId, file, baseId);
+    return loadDiff(gerritUrl, reviewData._number, revId, file, baseId);
   };
   return loadAndCache(rev.diffs[file], baseId, makePromise);
 }
@@ -318,43 +323,43 @@ async function loadAndCache(obj, prop, promiser) {
   return obj[promiseProp];
 }
 
-async function loadAndCacheComments(reviewData) {
+async function loadAndCacheComments(gerritUrl, reviewData) {
   const makePromise = function() {
-    return loadComments(reviewData._number);
+    return loadComments(gerritUrl, reviewData._number);
   };
   return loadAndCache(reviewData, "comments", makePromise);
 }
 
-function loadComments(id) {
-  return authenticatedSend({type: "loadComments", id: id});
+function loadComments(url, id) {
+  return authenticatedSend({type: "loadComments", url, id});
 }
 
 function renderError(text) {
   return $("<div class='gerrit-error'/>").text(text);
 }
 
-async function formatThread(reviewData) {
+async function formatThread(gerritUrl, id, reviewData) {
   const $thread = dom.getThread();
-  const curId = changeId;
 
   let numMessages = dom.getCards($thread).length;
 
   async function checkAndFormat() {
-    if (!changeId || curId !== changeId) {
+    if (!changeId || !changeGerritUrl || id !== changeId || gerritUrl !== changeGerritUrl) {
       observer.disconnect();
+      $thread.data("gerritUrl", undefined);
       $thread.data("gerritDiffId", undefined);
       return;
     }
     const newNumMessages = dom.getCards($thread).length;
     if (newNumMessages > numMessages) {
-      const resp = await loadChange(changeId);
+      const resp = await loadChange(gerritUrl, changeId);
       if (!resp.success) {
-        renderErrorBox(changeId, resp.err_msg);
+        renderErrorBox(gerritUrl, changeId, resp.err_msg);
       } else {
         reviewData = resp.data;
         numMessages = newNumMessages;
         doFormat();
-        renderBox(changeId, reviewData);
+        renderBox(gerritUrl, changeId, reviewData);
       }
     } else {
       doFormat();
@@ -366,7 +371,7 @@ async function formatThread(reviewData) {
 
   function doFormat() {
     dom.getCards($thread).each(function() {
-      formatCard($(this), reviewData);
+      formatCard(gerritUrl, $(this), reviewData);
     });
     dom.onThreadFormatted($thread);
   }
@@ -375,7 +380,7 @@ async function formatThread(reviewData) {
   tracker.sendEvent("render", "annotate", "thread");
 }
 
-function formatCard($card, reviewData) {
+function formatCard(gerritUrl, $card, reviewData) {
   const $msg = dom.getMessage($card);
   if ($msg.length == 0 || $msg.data("gerritFormatted")) {
     return;
@@ -392,15 +397,15 @@ function formatCard($card, reviewData) {
   }
 
   if (/Gerrit-MessageType: newchange/gm.test(text)) {
-    formatNewChange($card, $msg, text, reviewData);
+    formatNewChange(gerritUrl, $card, $msg, text, reviewData);
   } else if (/Gerrit-MessageType: comment/gm.test(text)) {
-    formatComment($card, $msg, text, reviewData);
+    formatComment(gerritUrl, $card, $msg, text, reviewData);
   } else if (/Gerrit-MessageType: merged/gm.test(text)) {
     formatMerged($card, $msg, text, reviewData);
   } else if (/Gerrit-MessageType: merge-failed/gm.test(text)) {
     formatMergeFailed($card, $msg, text, reviewData);
   } else if (/Gerrit-MessageType: newpatchset/gm.test(text)) {
-    formatNewPatch($card, $msg, text, reviewData);
+    formatNewPatch(gerritUrl, $card, $msg, text, reviewData);
   }
   $card.data("gerritFormatted", true);
   tracker.sendEvent("render", "annotate", "card");
@@ -415,7 +420,7 @@ function getRevisionIdByPatchNumber(reviewData, patchNumber) {
   return undefined;
 }
 
-function formatNewChange($card, $msg, text, reviewData) {
+function formatNewChange(gerritUrl, $card, $msg, text, reviewData) {
   $msg.empty();
 
   const pid = extractPatchSet(text);
@@ -432,7 +437,7 @@ function formatNewChange($card, $msg, text, reviewData) {
     }
   }
 
-  $msg.append(renderRevisionDiff(reviewData, revId, null));
+  $msg.append(renderRevisionDiff(gerritUrl, reviewData, revId, null));
 }
 
 function extractCommitMessage(commit) {
@@ -447,7 +452,7 @@ function extractCommitMessage(commit) {
   return $.trim(message);
 }
 
-function renderRevisionDiff(reviewData, revId, baseId) {
+function renderRevisionDiff(gerritUrl, reviewData, revId, baseId) {
   const $container = $("<div/>");
   const $buttons = $("<div/>").appendTo($container);
   const $toggle = makeButton("Show diffs")
@@ -483,7 +488,7 @@ function renderRevisionDiff(reviewData, revId, baseId) {
       if (file === "/COMMIT_MSG") {
         continue;
       }
-      renderFileBox(reviewData, revId, file, baseId).appendTo($box);
+      renderFileBox(gerritUrl, reviewData, revId, file, baseId).appendTo($box);
     }
   
     const respondButtons = [
@@ -530,18 +535,19 @@ function renderRevisionDiff(reviewData, revId, baseId) {
         review.comments[file].push({line: $(this).data("line"), side: $(this).data("side"), message: comment});
       });
   
-      const resp = await submitComments(reviewData._number, revId, review);
+      const resp = await submitComments(gerritUrl, reviewData._number, revId, review);
       tracker.sendEvent("diff", "submit_comments");
       if (resp.success) {
         $(".gerrit-reply-box", $box).detach();
         replyWidget.close(true);
       }
-      performActionCallback(reviewData._number, resp);
+      performActionCallback(gerritUrl, reviewData._number, resp);
     }
   }  
 
   // if this is the last revision, then show its diffs if not own review
-  if (gSettings.email !== reviewData.owner.email) {
+  const instance = getGerritInstance(gerritUrl);
+  if (instance.email !== reviewData.owner.email) {
     const maxRevId = _.max(_.pairs(reviewData.revisions), p => p[1]._number)[0];
     if (maxRevId === revId) {
       showBox();
@@ -551,11 +557,11 @@ function renderRevisionDiff(reviewData, revId, baseId) {
   return $container;
 }
 
-function renderFileBox(reviewData, revId, file, baseId) {
+function renderFileBox(gerritUrl, reviewData, revId, file, baseId) {
   const $filebox = $("<div class='gerrit-content-box'/>");
   $filebox.append($("<div class='gerrit-file-title'/>").text(file));
 
-  loadAndCacheDiff(reviewData, revId, file, baseId).then(function(resp) {
+  loadAndCacheDiff(gerritUrl, reviewData, revId, file, baseId).then(function(resp) {
     if (resp.success) {
       $filebox.append(appendFileDiff($filebox, file, resp.data));
     } else {
@@ -849,17 +855,17 @@ class RespondWidget {
   }
 }
 
-async function formatComment($card, $msg, text, reviewData) {
+async function formatComment(gerritUrl, $card, $msg, text, reviewData) {
   const pid = extractPatchSet(text);
   const revId = getRevisionIdByPatchNumber(reviewData, pid);
 
-  const resp = await loadMessageComments($card, text, reviewData, revId);
+  const resp = await loadMessageComments(gerritUrl, $card, text, reviewData, revId);
   if (!resp.success) {
     console.log("Failed to load comments :'(");
     return;
   }
 
-  formatMessageComments($msg, pid, revId, reviewData, resp.data);
+  formatMessageComments(gerritUrl, $msg, pid, revId, reviewData, resp.data);
 }
 
 function makeLineComment(comment, collapsed) {
@@ -906,7 +912,7 @@ function makeCommentThread(lastComment, id2comment) {
   return $thread;
 }
 
-function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
+function formatMessageComments(gerritUrl, $msg, pid, revId, reviewData, messageComments) {
   const lineReplyWidgets = [];
   let messageReplyWidget = null;
 
@@ -935,7 +941,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
         review.comments[lw.file].push(newComment);
       }
     }
-    const resp = await submitComments(reviewData._number, revId, review);
+    const resp = await submitComments(gerritUrl, reviewData._number, revId, review);
     tracker.sendEvent("comment", "submit_comments");
     if (resp.success) {
       for (const lw of lineReplyWidgets) {
@@ -943,7 +949,7 @@ function formatMessageComments($msg, pid, revId, reviewData, messageComments) {
       }
       messageReplyWidget.close(true);
     }
-    performActionCallback(reviewData._number, resp);
+    performActionCallback(gerritUrl, reviewData._number, resp);
   }
 
   $msg.empty();
@@ -1030,11 +1036,11 @@ function _diffToContentLines(diff) {
   return content;
 }
 
-async function loadAllFileContentLinesDict(reviewData, fileRevIds) {
+async function loadAllFileContentLinesDict(gerritUrl, reviewData, fileRevIds) {
   // fileRevIds is a list of two-element arrays of file and revId, like [[file1, rev1], [file2, rev1]], etc.
   // Returns a dict keyed by string `${file}___${rev}`, and the value is array of lines of that file
   // at that rev.
-  const promises = fileRevIds.map(([file, revId]) => loadFileContentLines(reviewData, file, revId));
+  const promises = fileRevIds.map(([file, revId]) => loadFileContentLines(gerritUrl, reviewData, file, revId));
   const resps = await Promise.all(promises);
   const dict = {};
   for (const [[file, revId], resp] of _.zip(fileRevIds, resps)) {
@@ -1045,7 +1051,7 @@ async function loadAllFileContentLinesDict(reviewData, fileRevIds) {
   return dict;
 }
 
-async function loadFileContentLines(reviewData, file, revId) {
+async function loadFileContentLines(gerritUrl, reviewData, file, revId) {
   // Try to serve file content from the diff cache if possible.
   if (reviewData.revisions[revId] && reviewData.revisions[revId].diffs && reviewData.revisions[revId].diffs[file]) {
     const diffs = reviewData.revisions[revId].diffs[file];
@@ -1060,7 +1066,7 @@ async function loadFileContentLines(reviewData, file, revId) {
   }
   // Nothing found in the cache, so load it (against undefined baseId, because we don't care
   // which base we use)
-  const resp = await loadAndCacheDiff(reviewData, revId, file);
+  const resp = await loadAndCacheDiff(gerritUrl, reviewData, revId, file);
   if (!resp.success) {
     return resp;
   } else {
@@ -1072,7 +1078,7 @@ async function loadFileContentLines(reviewData, file, revId) {
  * Loads and returns the comments and messages that most closely match to the email 
  * held by $card.
  */
-async function loadMessageComments($card, text, reviewData, revId) {
+async function loadMessageComments(gerritUrl, $card, text, reviewData, revId) {
   // It is hard to use the REST API and figure out which comments belong to
   // this email message, since the comments we get from the REST API are just
   // grouped together under a file, and we can't tell which belong to which
@@ -1088,9 +1094,10 @@ async function loadMessageComments($card, text, reviewData, revId) {
   // to work; we are basically using the timestamp as the join key, and we can only 
   // hope that no two people have made a comment at the same time.  This is at
   // least more likely to work, though.
-  const baseId = guessNewPatchBase(reviewData.revisions[revId]._number, reviewData);
+  const instance = getGerritInstance(gerritUrl);
+  const baseId = guessNewPatchBase(instance, reviewData.revisions[revId]._number, reviewData);
 
-  const resp = await loadAndCacheComments(reviewData);
+  const resp = await loadAndCacheComments(gerritUrl, reviewData);
   if (!resp.success) {
     return resp;
   }
@@ -1134,7 +1141,7 @@ async function loadMessageComments($card, text, reviewData, revId) {
     .value()
   );
 
-  const fileRevIdToContentLines = await loadAllFileContentLinesDict(reviewData, requiredFileContents);
+  const fileRevIdToContentLines = await loadAllFileContentLinesDict(gerritUrl, reviewData, requiredFileContents);
 
   function buildFileComments(file) {
     const lineComments = [];
@@ -1266,17 +1273,17 @@ function extractPatchSet(text) {
   return parseInt(RE_PATCHSET.exec(text)[1]);
 }
 
-function formatNewPatch($card, $msg, text, reviewData) {
+function formatNewPatch(gerritUrl, $card, $msg, text, reviewData) {
   const pid = extractPatchSet(text);
-  const basePid = guessNewPatchBase(pid, reviewData);
+  const basePid = guessNewPatchBase(getGerritInstance(gerritUrl), pid, reviewData);
 
   $msg.empty().html("<h3>New Patch Set: " + pid + (basePid ? " (vs " + basePid + ")" : "") + "</h3>");
   
   const revId = getRevisionIdByPatchNumber(reviewData, pid);
-  $msg.append(renderRevisionDiff(reviewData, revId, basePid));
+  $msg.append(renderRevisionDiff(gerritUrl, reviewData, revId, basePid));
 }
 
-function guessNewPatchBase(pid, reviewData) {
+function guessNewPatchBase(instance, pid, reviewData) {
   // Guess the best "base" to diff against.  It's going to be the last one that was
   // commented upon by someone other than the author.
   for (let i = reviewData.messages.length - 1; i >= 0; i--) {
@@ -1285,7 +1292,7 @@ function guessNewPatchBase(pid, reviewData) {
       // Messages sent by Gerrit have no author
       continue;
     }
-    if (msg._revision_number < pid && msg.author.username !== reviewData.owner.username && !isBot(msg.author.username)) {
+    if (msg._revision_number < pid && msg.author.username !== reviewData.owner.username && !isBot(msg.author.username, instance)) {
       return msg._revision_number;
     }
   }
@@ -1314,25 +1321,25 @@ function getLabelStatus(reviewData, label) {
   }
 }
 
-function isChangeOwner(change) {
-  return gSettings.email === change.owner.email;
+function isChangeOwner(change, selfEmail) {
+  return selfEmail === change.owner.email;
 }
 
-function isChangeReviewer(change) {
+function isChangeReviewer(change, selfEmail) {
   if (!change.reviewers || !change.reviewers.REVIEWER) {
     return false;
   }
   for (const reviewer of change.reviewers.REVIEWER) {
-    if (gSettings.email === reviewer.email) {
+    if (selfEmail === reviewer.email) {
       return true;
     }
   }
   return false;
 }
 
-function reviewStatus(reviewData) {
-  const isOwner = isChangeOwner(reviewData);
-  const isReviewer = isChangeReviewer(reviewData);
+function reviewStatus(instance, reviewData) {
+  const isOwner = isChangeOwner(reviewData, instance.email);
+  const isReviewer = isChangeReviewer(reviewData, instance.email);
   if (reviewData.status === 'MERGED') {
     return 'Merged';
   } else if (reviewData.status === 'ABANDONED') {
@@ -1363,9 +1370,9 @@ function reviewStatus(reviewData) {
   if (isOwner) {
     for (let i=reviewData.messages.length-1; i>=0; i--) {
       const message = reviewData.messages[i];
-      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username)) {
+      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username, instance)) {
         continue;
-      } else if (message.author.email === gSettings.email) {
+      } else if (message.author.email === selfEmail) {
         return "Waiting";
       } else {
         return "To Respond";
@@ -1375,9 +1382,9 @@ function reviewStatus(reviewData) {
   } else if (isReviewer) {
     for (let i=reviewData.messages.length-1; i>=0; i--) {
       const message = reviewData.messages[i];
-      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username)) {
+      if (message.message.indexOf("rebased") >= 0 || isBot(message.author.username, instance)) {
         continue;
-      } else if (message.author.email === gSettings.email) {
+      } else if (message.author.email === selfEmail) {
         return "Reviewed";
       } else if (message.author.email === reviewData.owner.email) {
         return "To Review";
@@ -1392,6 +1399,7 @@ function reviewStatus(reviewData) {
 }
 
 function clearDiff() {
+  changeGerritUrl = null;
   changeId = null;
   $sideBox.detach();
 }
@@ -1429,25 +1437,31 @@ async function loadSettings() {
   return await sendMessage({type: "settings"});
 }
 
-async function authenticate() {
-  const resp = await sendMessage({type: "authenticate"});
+function getGerritInstance(gerritUrl) {
+  return _.find(gSettings.gerritInstances, inst => inst.url == gerritUrl);
+}
+
+async function authenticate(url) {
+  const instance = getGerritInstance(url);
+  console.log("Authenticating for", instance);
+  const resp = await sendMessage({type: "authenticate", url});
   if (resp.success) {
-    gSettings.auth = true;
-    gSettings.email = resp.email;
+    instance.auth = true;
+    instance.email = resp.email;
     showSuccess();
   } else {
-    gSettings.auth = false;
-    gSettings.email = undefined;
+    instance.auth = false;
+    instance.email = undefined;
     showNeedLogin();
   }
   return resp;
 }
 
-function viewDiff(id) {
-  sendMessage({type: "viewDiff", id: id});  
+function viewDiff(url, id) {
+  sendMessage({type: "viewDiff", url, id});  
 }
 
-async function commentDiff(id, score, comment) {
+async function commentDiff(url, id, score, comment) {
   let commentText = null;
   if (comment) {
     commentText = prompt("Say your piece.");
@@ -1455,42 +1469,42 @@ async function commentDiff(id, score, comment) {
       return;
     }
   }
-  return await authenticatedSend({type: "commentDiff", id, score, comment: commentText});
+  return await authenticatedSend({type: "commentDiff", url, id, score, comment: commentText});
 }
 
-async function approveSubmitDiff(id, score) {
-  const resp = await commentDiff(id, score, false);
+async function approveSubmitDiff(url, id, score) {
+  const resp = await commentDiff(url, id, score, false);
   if (!resp.success) {
     return resp;
   } else {
-    return await submitDiff(id);
+    return await submitDiff(url, id);
   }
 }
 
-async function submitDiff(id) {
-  const resp = await authenticatedSend({type: "submitDiff", id: id});
+async function submitDiff(url, id) {
+  const resp = await authenticatedSend({type: "submitDiff", url, id});
   if (!resp.success && resp.status === 409 && resp.err_msg.indexOf("Please rebase") >= 0) {
     console.log("Submit failed; automatically rebasing...");
-    return await rebaseSubmitChange(id);
+    return await rebaseSubmitChange(url, id);
   } else {
     return resp;
   }
 }
 
-async function rebaseChange(id) {
-  return await authenticatedSend({type: "rebaseChange", id: id});
+async function rebaseChange(url, id) {
+  return await authenticatedSend({type: "rebaseChange", url, id});
 }
 
-async function submitComments(id, revId, review) {
-  return await authenticatedSend({type: "submitComments", id: id, revId: revId, review: review});
+async function submitComments(url, id, revId, review) {
+  return await authenticatedSend({type: "submitComments", url, id, revId, review});
 }
 
-async function rebaseSubmitChange(id) {
-  const resp = await rebaseChange(id);
+async function rebaseSubmitChange(url, id) {
+  const resp = await rebaseChange(url, id);
   if (!resp.success) {
     return resp;
   } else {
-    return await authenticatedSend({type: "submitDiff", id: id});
+    return await authenticatedSend({type: "submitDiff", url, id});
   }
 }
 
@@ -1500,25 +1514,29 @@ async function initialize() {
   tracker.set("dimension1", getGmailType());
 
   const settings = await loadSettings();
-  gSettings.url = settings.url;
-  gSettings.contextLines = settings.contextLines;
-  gSettings.botNames = settings.botNames;
+  const validInstances = (settings.gerritInstances || []).filter(inst => inst.url);
 
-  if (!gSettings.url) {
-    // No URL set; forget it
+  if (validInstances.length == 0) {
+    // No URLs set; forget it
     showNeedSetup();
     console.log("Gerrit extension still needs to be setup; nevermind.")
     return;
   }
 
-  if (settings.gmail && window.document.title.indexOf(settings.gmail) < 0) {
+  const usableInstances = validInstances.filter(inst => !inst.gmail || window.document.title.indexOf(inst.gmail) >= 0);
+  if (usableInstances.length == 0) {
     // Email is set and is not the current gmail account; forget it
-    console.log("Gerrit extension expecting gmail " + settings.gmail + " in title " + window.document.title + " but not found; nevermind!");
+    console.log("Gerrit extension expecting gmail in title " + window.document.title + " but not found; nevermind!");
     tracker.sendAppView("wrong_gmail");
     return;
   }
 
   console.log("Running Gerrit plugin!");
+
+  gSettings.gerritInstances = usableInstances;
+  gSettings.contextLines = settings.contextLines;
+  
+  console.log("Gerrit: settings", gSettings);
 
   tracker.sendAppView("initial");
 
@@ -1534,17 +1552,19 @@ function extractDiffIdFromUrl(url) {
   return null;
 }
 
-function extractDiffId() {
+function extractDiffId(gerritUrl) {
   const $thread = dom.getThread();
+  const prevUrl = $thread.data("gerritUrl");
   const prevId = $thread.data("gerritDiffId");
-  if (prevId) {
+  if (prevUrl && prevId) {
     return prevId;
   }
-  const $anchor = $("a[href*='" + gSettings.url + "']", $thread);
+  const $anchor = $("a[href*='" + gerritUrl + "']", $thread);
   for (let i = 0; i < $anchor.length; i++) {
     const url = $($anchor[i]).attr("href");
     const id = extractDiffIdFromUrl(url);
     if (id) {
+      $thread.data("gerritUrl", gerritUrl);
       $thread.data("gerritDiffId", id);
       return id;
     }
@@ -1553,30 +1573,39 @@ function extractDiffId() {
 }
 
 async function checkThreads() {
-  const $subjects = dom.getSubjects();
+  const $subjects = dom.getSubjects()
+    .filter(function() {return !$(this).data("gerrit-thread-seen");});
   if ($subjects.length === 0) {
     return;
   }
 
-  const needData = _.any($subjects, function(s) { return !$(s).data("gerrit-thread-seen"); });
-  if (needData) {
-    const resp = await loadChanges();
-    if (!resp.success) {
-      return;
-    }
-    annotateThreads($subjects, resp.data);
-  }
+  const allInstanceChanges = await loadChangesForAllInstances();
+  annotateThreads($subjects, allInstanceChanges);
 }
 
-function annotateThreads($subjects, changes) {
+async function loadChangesForAllInstances() {
+  const allInstanceChanges = [];
+  const promises = gSettings.gerritInstances.map(inst => loadChanges(inst.url));
+  const allResults = await Promise.all(promises);
+  for ([inst, instResults] of _.zip(gSettings.gerritInstances, allResults)) {
+    if (instResults.success) {
+      for (const change of instResults.data) {
+        allInstanceChanges.push([inst, change]);
+      }
+    }
+  }
+  return allInstanceChanges;
+}
+
+function annotateThreads($subjects, allInstanceChanges) {
   function changeSubject(change) {
     return change.project + "[" + change.branch + "]: " + change.subject;
   }
   function findChange(text) {
-    for (const change of changes) {
+    for (const [inst, change] of allInstanceChanges) {
       const subject = changeSubject(change).substring(0, 50);
       if (text.indexOf(subject) >= 0) {
-        return change;
+        return [inst, change];
       }
     }
     return null;
@@ -1589,19 +1618,19 @@ function annotateThreads($subjects, changes) {
     }
     $subject.data("gerrit-thread-seen", true);
     const text = $subject.text();
-    const change = findChange(text);
-    if (change) {
+    const found = findChange(text);
+    if (found) {
       $subject.data("gerrit-thread-annotated", true);
-      annotateSubject($subject, change);      
+      annotateSubject(found[0], $subject, found[1]);      
     }
   }
 }
 
-function annotateSubject($subject, change) {
-  const status = reviewStatus(change);
-  const $button = dom.annotateSubject($subject, status, change.topic).click(() => viewDiff(change._number));
+function annotateSubject(instance, $subject, change) {
+  const status = reviewStatus(instance, change);
+  const $button = dom.annotateSubject($subject, status, change.topic).click(() => viewDiff(instance.url, change._number));
 
-  const isOwner = isChangeOwner(change);
+  const isOwner = isChangeOwner(change, instance.email);
 
   if (["Merged", "Abandoned", "Merge Pending", "Reviewed", "Waiting", "Unverified"].indexOf(status) >= 0) {
     $button.addClass("gerrit-threadlist-button--muted");
@@ -1624,19 +1653,21 @@ function annotateSubject($subject, change) {
   tracker.sendEvent("render", "annotate", "subject");
 }
 
-function checkDiff() {
-  const id = extractDiffId();
-  if (id !== changeId) {
-    console.log("Gerrit: Found change", id);
-    clearDiff();
-    if (id) {
-      renderChange(id);
+async function checkDiff() {
+  for (const inst of gSettings.gerritInstances) {
+    const id = extractDiffId(inst.url);
+    if (id !== changeId) {
+      console.log(`Gerrit: Found change for ${inst.url} -- ${id}`);
+      clearDiff();
+      if (id) {
+        await renderChange(inst.url, id);
+      }
     }
   }
 }
 
-function isBot(username) {
-  return _.contains(gSettings.botNames || [], username);
+function isBot(username, instance) {
+  return _.contains(instance.botNames || [], username);
 }
 
 async function handleKeyPress(e) {
@@ -1646,15 +1677,15 @@ async function handleKeyPress(e) {
   }
   if (changeId) {
     if (e.which === 119) {
-      viewDiff(changeId);
+      viewDiff(changeGerritUrl, changeId);
       tracker.sendEvent("keyboard_shortcut", "press", "view_diff");
     } else if (e.which === 87) {
       const resp = await loadChange(changeId);
       if (resp.success) {
         const reviewData = resp.data;
         const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
-        const resp = await commentDiff(changeId, maxPermittedScore, false);
-        performActionCallback(changeId, resp);
+        const resp = await commentDiff(changeGerritUrl, changeId, maxPermittedScore, false);
+        performActionCallback(changeGerritUrl, changeId, resp);
         if (resp.success) {
           flashMessage("Approved!");
           tracker.sendEvent("keyboard_shortcut", "press", "approve_diff");
@@ -1726,7 +1757,14 @@ class GmailDom {
     return $button;
   }
   onDomChanged(handleDiff, handleThreads, handleClearDiff) {
-    let newThreadsCheckerId = undefined;
+    let isShowingThreadList = false;
+
+    const checkThreads = async () => {
+      if (isShowingThreadList) {
+        await handleThreads();
+        setTimeout(checkThreads, 10000);
+      }
+    }
 
     const check = () => {
       if (this.isShowingThread()) {
@@ -1737,14 +1775,10 @@ class GmailDom {
       
       if (this.isShowingThreadList()) {
         tracker.sendAppView("threadlist");
-        handleThreads();
-        if (!newThreadsCheckerId) {
-          newThreadsCheckerId = setInterval(handleThreads, 5000);
-        }
+        isShowingThreadList = true;
+        checkThreads();
       } else {
-        if (newThreadsCheckerId) {
-          clearInterval(newThreadsCheckerId);
-        }
+        isShowingThreadList = false;
         if (!this.isShowingThread()) {
           console.log("Hmm, not showing threadlist or thread; try again in 5s");
           setTimeout(check, 5000);
