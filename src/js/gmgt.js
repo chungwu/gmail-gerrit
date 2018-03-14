@@ -1585,8 +1585,10 @@ async function checkThreads() {
 
 async function loadChangesForAllInstances() {
   const allInstanceChanges = [];
+  console.log("settings", gSettings);
   const promises = gSettings.gerritInstances.map(inst => loadChanges(inst.url));
   const allResults = await Promise.all(promises);
+  console.log("allResults", allResults);
   for ([inst, instResults] of _.zip(gSettings.gerritInstances, allResults)) {
     if (instResults.success) {
       for (const change of instResults.data) {

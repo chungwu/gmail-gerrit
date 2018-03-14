@@ -134,8 +134,10 @@ function wrapAsyncHandler(promise, callback) {
 }
 
 function loadChanges(gerritUrl) {
+  const inst = getGerritInstance(gerritUrl);
+  console.log(`Loading changes for ${gerritUrl}`, inst);
   const options = ['DETAILED_LABELS', 'MESSAGES', 'REVIEWED', 'DETAILED_ACCOUNTS'];
-  const query = gerritInboxQuery();
+  const query = inst['inboxQuery'];
   return ajax(gerritUrl, "/changes/", 'GET', {q: query, o: options}, {traditional: true});
 }
 
@@ -250,16 +252,16 @@ function showDiffs(url, id) {
   chrome.tabs.create({url: `${url}/${id}`});
 }
 
-function login() {
-  chrome.tabs.create({url:gerritUrl()});
+function login(url) {
+  chrome.tabs.create({url});
 }
 
 function setup() {
   chrome.runtime.openOptionsPage();
 }
 
-function isAuthenticated() {
-  return _GERRIT_AUTH !== undefined;
+function isAuthenticated(url) {
+  return _GERRIT_AUTHS[url] !== undefined;
 }
 
 function gerritSettings() {
@@ -267,33 +269,9 @@ function gerritSettings() {
   return settingsString ? JSON.parse(settingsString) : {};
 }
 
-function defaultGerritInstance() {
+function getGerritInstance(url) {
   const settings = gerritSettings();
-  if (settings.gerritInstances && settings.gerritInstances.length > 0) {
-    return settings.gerritInstances[0];
-  } else {
-    return undefined;
-  }
-}
-
-function gerritUrl() {
-  const settings = defaultGerritInstance();
-  return settings ? settings['url'] : undefined;
-}
-
-function gerritGmail() {
-  const settings = defaultGerritInstance();
-  return settings ? settings['gmail'] : undefined;
-}
-
-function gerritInboxQuery() {
-  const settings = defaultGerritInstance();
-  return settings ? settings['inboxQuery'] : DEFAULT_INBOX_QUERY;
-}
-
-function gerritBotNames() {
-  const settings = defaultGerritInstance();
-  return settings ? settings['botNames'] : [];
+  return _.find(settings.gerritInstances, inst => inst.url === url);
 }
 
 function hasSuccessfullyConnected() {
