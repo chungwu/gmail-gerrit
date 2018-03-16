@@ -4,12 +4,12 @@ Gerrit for Gmail Chrome Extension
 Gerrit is great, and its review-per-commit model really encourages numerous small, logical, easy-to-digest code
 reviews over a few monstrous ones -- just the way we prefer it.  However, that also means we end up doing a lot
 of small code reviews that are so simple and straightforward, that often we'd rather just read and approve 
-the change right when we receive the code review notification in Gmail.  That's what this Chrome extension is -- 
-a frictionless UI for performing your common Gerrit actions without leaving Gmail.  It is a mini Gerrit client
-built right into your Gmail.  If you use Gerrit, and you use Gmail, this is for you.
+the change right when we receive the code review notification in Gmail or Inbox.  That's what this Chrome extension is -- 
+a frictionless UI for performing your common Gerrit actions without leaving Gmail or Inbox.  It is a mini Gerrit client
+built right into your Gmail.  If you use Gerrit, and you use Gmail or Inbox, this is for you.
 
-This Chrome extension aims to implement a very basic Gerrit workflow into your Gmail, based on the emails Gerrit sends.
-Specifically,
+This Chrome extension aims to implement a very basic Gerrit workflow into your Gmail/Inbox, based on the emails 
+Gerrit sends.  Specifically,
 
 * On new patch set emails,
   * **Colored diffs** will be displayed for the patch set.  If this is not the first patch set, we diff it against
@@ -40,6 +40,15 @@ diff line to comment directly.*
 *Gerrit emails in your inbox thread list will contain their current Gerrit status, and call out which ones 
 require your attention.*
 ![threadlist](https://user-images.githubusercontent.com/773353/35765049-6ef13cd2-0871-11e8-9950-b24154fb9dd9.png)
+
+*Works the same in Google Inbox!*
+![inbox chungwu gmail com](https://user-images.githubusercontent.com/773353/37502859-6874d026-2892-11e8-8583-b978e445cb45.png)
+
+*Viewing and commenting on diffs in Google Inbox*
+![inbox-diffs](https://user-images.githubusercontent.com/773353/37502861-68a6cec8-2892-11e8-9ab8-086dcf00f557.png)
+
+*Replying to comments in Google Inbox*
+![inbox-comments](https://user-images.githubusercontent.com/773353/37502860-688d77a2-2892-11e8-9e08-553a1744e5f2.png)
 
 Review Statuses
 ---------------
@@ -116,7 +125,6 @@ and the code is in general poorly documented and unpleasant to read.  Too bad!
 
 My wish list for features I'd like to see include:
 
-* **Support for multiple Gerrit repositories.**  Right now you can only configure one.
 * **Better reflection of configured Gerrit workflow.**  Allowing +1s and -2s, checking permission on actions you can
   actually perform, etc.
 * **Use a "real" Gmail extension toolkit**, like [Gmail.js](https://github.com/KartikTalwar/gmail.js/tree/master) 
