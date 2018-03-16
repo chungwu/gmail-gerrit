@@ -1559,7 +1559,12 @@ function extractDiffId(gerritUrl) {
   if (prevUrl && prevId) {
     return prevId;
   }
-  const $anchor = $("a[href*='" + gerritUrl + "']", $thread);
+  // Use the schemeless version of the gerritUrl, so that for some gerrit.com url, we
+  // would match both http://gerrit.com and https://gerrit.com.  That's just to work around
+  // misconfiguration on Gerrit side, in case the link embedded in emails is http even
+  // though Gerrit itself is hosted on https.
+  const schemeless = extractSchemelessUrl(gerritUrl);
+  const $anchor = $(`a[href*='${gerritUrl}']`, $thread);
   for (let i = 0; i < $anchor.length; i++) {
     const url = $($anchor[i]).attr("href");
     const id = extractDiffIdFromUrl(url);
@@ -1570,6 +1575,15 @@ function extractDiffId(gerritUrl) {
     }
   }
   return null;
+}
+
+function extractSchemelessUrl(url) {
+  const index = url.indexOf("://");
+  if (index >= 0) {
+    return url.substring(index);
+  } else {
+    return url;
+  }
 }
 
 async function checkThreads() {
