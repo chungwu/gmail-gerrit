@@ -1338,8 +1338,9 @@ function isChangeReviewer(change, selfEmail) {
 }
 
 function reviewStatus(instance, reviewData) {
-  const isOwner = isChangeOwner(reviewData, instance.email);
-  const isReviewer = isChangeReviewer(reviewData, instance.email);
+  const selfEmail = instance.email;
+  const isOwner = isChangeOwner(reviewData, selfEmail);
+  const isReviewer = isChangeReviewer(reviewData, selfEmail);
   if (reviewData.status === 'MERGED') {
     return 'Merged';
   } else if (reviewData.status === 'ABANDONED') {
