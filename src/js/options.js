@@ -68,7 +68,7 @@ function _validateUrl(url) {
 }
 
 const DEFAULT_GERRIT_INSTANCE_OPTIONS = {
-  inboxQuery: "(owner:self OR reviewer:self OR assignee:self) -age:7d",
+  inboxQuery: "(owner:self OR reviewer:self) -age:7d",
   botNames: "jenkins",
 };
 

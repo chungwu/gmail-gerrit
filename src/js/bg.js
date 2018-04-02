@@ -326,7 +326,8 @@ chrome.runtime.onInstalled.addListener(details => {
   }
 });
 
-DEFAULT_INBOX_QUERY = "(owner:self OR reviewer:self OR assignee:self) -age:7d";
+OLD_DEFAULT_INBOX_QUERY = "(owner:self OR reviewer:self OR assignee:self) -age:7d";
+DEFAULT_INBOX_QUERY = "(owner:self OR reviewer:self) -age:7d";
 function migrate() {
   if (localStorage["inboxQuery"] === undefined) {
     console.log("Setting initial inboxQuery");
@@ -349,5 +350,19 @@ function migrate() {
     } else {
       localStorage["settings"] = JSON.stringify({});
     }
+  }
+
+  if (!localStorage["migrate_old_default_inbox_query"]) {
+    const settings = gerritSettings();
+    if (settings.gerritInstances) {
+      for (const inst of settings.gerritInstances) {
+        if (inst.inboxQuery === OLD_DEFAULT_INBOX_QUERY) {
+          inst.inboxQuery = DEFAULT_INBOX_QUERY;
+          console.log("Migrating inboxQuery for", inst.url);
+        }
+      }
+      localStorage["settings"] = JSON.stringify(settings);
+    }
+    localStorage["migrate_old_default_inbox_query"] = true;
   }
 }
