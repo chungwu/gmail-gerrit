@@ -73,7 +73,7 @@ const DEFAULT_GERRIT_INSTANCE_OPTIONS = {
 };
 
 function load() {
-  const settings = JSON.parse(localStorage["settings"]);
+  const settings = localStorage["settings"] ? JSON.parse(localStorage["settings"]) : {};
   console.log("Deserialized settings", settings);
   const gerritInstances = settings.gerritInstances || [];
   
