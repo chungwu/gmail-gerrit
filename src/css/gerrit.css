@@ -27,6 +27,7 @@
   padding: 10px 0;
   border-bottom: 1px solid #d8d8d8;
   position: fixed;
+  max-width: 200px;
 }
 
 .gerrit-sidebox-container--inbox {
@@ -75,6 +76,10 @@
   padding-left: 3px;
 }
 
+.gerrit-sidebox-buttons {
+  margin-bottom: 0.5em;
+}
+
 .gerrit-button--inbox.gerrit-button--primary {
   color: #3367d6;
 }
@@ -86,9 +91,10 @@
 
 .gerrit-button--gmail.gerrit-button-small {
   font-size: 10px !important;
-  padding: 0 !important;
+  padding: 0 10px !important;
   height: 16px !important;
   line-height: 16px !important;
+  min-width: auto;
 }
 
 .gerrit-button--inbox.gerrit-button-small {
@@ -101,6 +107,16 @@ a.gerrit-button {
 
 a.gerrit-button--gmail {
   color: #444;
+  box-shadow: inset 0 0 0 1px #dadce0;
+}
+
+.a8Y > .gerrit-button--gmail.T-I-ax7, .a8Y > .gerrit-button--gmail.T-I-atl {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+.a8Y > .gerrit-button--gmail.gerrit-button-small.T-I-ax7 {
+  min-width: auto;
 }
 
 .gerrit-button.error-button {
@@ -335,6 +351,10 @@ textarea.gerrit-reply {
 
 .gerrit-commentable:hover .gerrit-add-comment {
   display: block;
+}
+
+.a4X > .gerrit-thread-list-button-container.aKS {
+  display: flex;
 }
 
 .gerrit-threadlist-icon {

@@ -75,7 +75,7 @@ function renderErrorBox(gerritUrl, id, err_msg) {
   makeInfoBoxHeader(gerritUrl, id, "Error").appendTo($sideBox);
   $("<div class='note gerrit-error'/>").text(err_msg).appendTo($sideBox);
   if (!instance.auth) {
-    $("<div class='gerrit-sidebox-buttons'/>").appendTo($sideBox)
+    $("<div class='gerrit-sidebox-buttons a8Y'/>").appendTo($sideBox)
       .append(makeButton("Login", {href: gerritUrl, primary: true}).appendTo($sideBox))
       .append(makeButton("Try again").appendTo($sideBox).click(() => renderChange(gerritUrl, id)));
   }
@@ -161,7 +161,7 @@ function renderBox(gerritUrl, id, reviewData) {
     }
   }
 
-  const $basicButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
+  const $basicButtons = $("<div class='gerrit-sidebox-buttons a8Y'/>").appendTo($content);
   $basicButtons.append(makeButton("View").click(() => {
     viewDiff(gerritUrl, id)
     tracker.sendEvent("infobox", "click", "view");
@@ -176,18 +176,18 @@ function renderBox(gerritUrl, id, reviewData) {
 
   if (status === "Approved") {
     if (isOwner && canSubmit(reviewData)) {
-      $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
+      $("<div class='gerrit-sidebox-buttons a8Y'/>").appendTo($content)
         .append(makeButton("Submit").addClass("submit-button").click(() => perform("submit", submitDiff(gerritUrl, id))));
     }
   } else if (status === "Merge Pending" || status === "Cannot Merge") {
     if (isOwner) {
-      $("<div class='gerrit-sidebox-buttons'/>").appendTo($content)
+      $("<div class='gerrit-sidebox-buttons a8Y'/>").appendTo($content)
         .append(makeButton("Rebase", {side: "left"}).click(() => perform("rebase", rebaseChange(gerritUrl, id))))
         .append(makeButton("& submit", {side: "right"}).click(() => perform("rebase_submit", rebaseSubmitChange(gerritUrl, id))));
     }
   } else if ((isReviewer || isOwner) && ["Merged", "Abandoned", "Merge Pending"].indexOf(status) < 0) {
     const maxPermittedScore = maxPermittedCodeReviewScore(reviewData);
-    const $approveButtons = $("<div class='gerrit-sidebox-buttons'/>").appendTo($content);
+    const $approveButtons = $("<div class='gerrit-sidebox-buttons a8Y'/>").appendTo($content);
     if (maxPermittedScore !== undefined && maxPermittedScore > 0) {
       $approveButtons.append(
         makeButton(
@@ -454,7 +454,7 @@ function extractCommitMessage(commit) {
 
 function renderRevisionDiff(gerritUrl, reviewData, revId, baseId) {
   const $container = $("<div/>");
-  const $buttons = $("<div/>").appendTo($container);
+  const $buttons = $("<div class='a8Y'/>").appendTo($container);
   const $toggle = makeButton("Show diffs")
     .appendTo($buttons)
     .addClass("show-diffs-button")
@@ -502,7 +502,7 @@ function renderRevisionDiff(gerritUrl, reviewData, revId, baseId) {
         ).click(function() { collectAndSubmitComments(true); }));
     }
     const replyWidget = new RespondWidget(
-      makeButton("Comment").click(() => tracker.sendEvent("diff", "add_comment", "patchset")), 
+      makeButton("Comment", {iconsrc: "icons/gerrit.png"}).click(() => tracker.sendEvent("diff", "add_comment", "patchset")), 
       respondButtons);
     replyWidget.getWidget().addClass("primary").appendTo($box);
 
@@ -786,8 +786,11 @@ function segmentEdits(lines, edits) {
 }
 
 function makeButton(text, opts) {
-  const {small, href, primary, side} = opts || {};
+  const {small, href, primary, side, iconsrc} = opts || {};
   const $button = dom.makeButton(primary, side).text(text);
+  if (iconsrc) {
+    $("<img/>").prop("src", chrome.extension.getURL(iconsrc)).css({"marginRight": "5px"}).prependTo($button);
+  }
   if (href) {
     $button.prop("href", href);
   }
@@ -799,16 +802,16 @@ function makeButton(text, opts) {
 
 class RespondWidget {
   constructor($teaserButton, buttons) {
-    this.$buttons = $("<div/>");
+    this.$buttons = $("<div class='a8Y'/>");
     buttons.forEach($b => $b.appendTo(this.$buttons));
 
     if (buttons.length > 0) {
-      this.$buttons.addClass("action-buttons");
+      this.$buttons.addClass("a8Y action-buttons");
     }
 
     this.$box = $("<div class='gerrit-reply-box'/>");
 
-    this.$teaser = $("<div/>").appendTo(this.$box);
+    this.$teaser = $("<div class='a8Y'/>").appendTo(this.$box);
 
     $teaserButton.appendTo(this.$teaser).click(() => this.open(true));
 
@@ -965,8 +968,10 @@ function formatMessageComments(gerritUrl, $msg, pid, revId, reviewData, messageC
         "Submit Comments & Approve" + (maxPermittedScore != 2 ? ` (+${maxPermittedScore})` : "")
       ).click(function() { collectAndSubmitComments(true); }))
   }
+
+  const $replyButton =  makeButton("Reply", {iconsrc: "icons/gerrit.png"}).click(() => tracker.sendEvent("comment", "add_comment", "patchset"));
   messageReplyWidget = new RespondWidget(
-    makeButton("Reply").click(() => tracker.sendEvent("comment", "add_comment", "patchset")), 
+    $replyButton, 
     respondButtons);
   messageReplyWidget.getWidget().addClass("primary").appendTo($msg);
 
@@ -1829,7 +1834,7 @@ class GmailDom {
     } 
     const $parentLink = $subject.closest("div[role='link']");
     $parentLink.wrap("<div class='a4X' style='padding-right:30ex;'/>");
-    const $panel = $("<span/>").addClass("aKS").insertAfter($parentLink);
+    const $panel = $("<span/>").addClass("aKS gerrit-thread-list-button-container").insertAfter($parentLink);
     $button = $("<div/>").addClass("T-I J-J5-Ji aOd aS9 T-I-awv L3 gerrit-threadlist-button").prop("role", "button").appendTo($panel);
     $("<img/>").prop("src", chrome.extension.getURL("icons/gerrit.png")).addClass("gerrit-threadlist-icon").appendTo($button);
     $("<span/>").addClass("aJ6 gerrit-threadlist-span gerrit-threadlist-status").appendTo($button).text(status);
